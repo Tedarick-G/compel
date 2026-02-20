@@ -16,8 +16,7 @@ export const COLS = [
 ];
 
 /* ✅ Marka alias:
-   - UI/Compel marka adı ↔ Aide marka adı eşitlenecek
-   - Burada normalize edilen değer her yerde ortak anahtar olur (Compel/T-Soft/Aide)
+   - normalize edilen değer her yerde ortak anahtar olur (Compel/T-Soft/Aide)
 */
 const ALIAS = new Map([
   // Mevcutlar
@@ -27,13 +26,13 @@ const ALIAS = new Map([
   ['RØDE', 'RODE'],
   ['RØDE X', 'RODE'],
 
-  // ✅ Senin verdiğin Compel → Aide karşılıkları
+  // ✅ Compel(UI) → Aide karşılıkları
   ['DENON DJ', 'DENON'],
   ['FENDER STUDIO', 'FENDER'],
   ['UNIVERSAL AUDIO', 'UNIVERSAL'],
   ['WARM AUDIO', 'WARMAUDIO'],
 
-  // Yaygın varyasyonlar (zararsız)
+  // Yaygın varyasyonlar
   ['M AUDIO', 'M-AUDIO'],
   ['MARANTZ PROF.', 'MARANTZ']
 ]);
@@ -72,7 +71,7 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
 
   // results
   let R = [], U = [];
-  let UT = []; // ✅ T-Soft tarafında (Compel'e EAN veya WS(KOD) ile eşleşmeyenler)
+  let UT = []; // ✅ T-Soft tarafında Compel'e EAN/Barkod veya WS/Kod ile eşleşmeyenler
 
   const key = (r, fn) => {
     const b = fn(r[C1.marka] || '');
@@ -187,28 +186,40 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
 
     R = []; U = []; UT = [];
 
-    // ✅ T-Soft eşleşmiş sayılacaklar = SADECE (EAN) veya (Compel Ürün Kodu ↔ WS)
-    const matchedStrict = new Set(); // r2 object refs
+    // ✅ UT filtresi için: Compel tarafındaki tüm EAN’lar ve Ürün Kodları seti
+    const compelEanSet = new Set();
+    const compelCodeSet = new Set();
 
-    // 1) Compel -> T-Soft eşleştirme
+    for (const r1 of L1) {
+      for (const e of eans(r1[C1.ean] || '')) compelEanSet.add(e);
+      const code = T(r1[C1.urunKodu] || '');
+      if (code) compelCodeSet.add(code);
+    }
+
+    // 1) Compel -> T-Soft eşleştirme (ana tablo)
     for (const r1 of L1) {
       let r2 = byEan(r1), how = r2 ? 'EAN' : '';
       if (!r2) { r2 = byCompelCodeWs(r1); if (r2) how = 'KOD'; }
       if (!r2) { r2 = byMap(r1); if (r2) how = 'JSON'; }
 
-      // ✅ sadece EAN/KOD eşleşmesi "strict match"
-      if (r2 && (how === 'EAN' || how === 'KOD')) matchedStrict.add(r2);
-
       const row = outRow(r1, r2, how);
       R.push(row);
-      if (!row._m) U.push(row); // Compel’de var, T-Soft’ta eşleşmedi (hiç yok)
+      if (!row._m) U.push(row); // Compel’de var, T-Soft’ta hiç eşleşmedi
     }
 
-    // 2) T-Soft tarafı: Compel’e göre EAN/KOD ile eşleşmeyenler
-    // ✅ JSON / SUP / MANUAL gibi şeyler burada "eşleşmiş" sayılmaz → listelenebilir
+    // 2) T-Soft tarafı: SADECE "Compel’e EAN/Barkod veya WS/Kod ile eşleşmeyenler"
+    // ✅ Burada artık Compel eşleşenler asla listelenmez.
     const seen = new Set(); // brand||sup||name
     for (const r2 of L2) {
-      if (matchedStrict.has(r2)) continue; // ✅ EAN veya KOD eşleşmişse UT'ye girmez
+      // ✅ 2.1 EAN/Barkod ile Compel’e eşleşiyorsa SKIP
+      const barkList = eans(r2[C2.barkod] || '');
+      let barkMatch = false;
+      for (const b of barkList) { if (compelEanSet.has(b)) { barkMatch = true; break; } }
+      if (barkMatch) continue;
+
+      // ✅ 2.2 WS ile Compel Ürün Kodu eşleşiyorsa SKIP
+      const ws = T(r2[C2.ws] || '');
+      if (ws && compelCodeSet.has(ws)) continue;
 
       const brN = B(r2[C2.marka] || '');
       if (!brN) continue;
@@ -231,7 +242,7 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
         "T-Soft Ürün Adı": nm,
         _seo: seoAbs,
         _sup: sup,
-        _ws: T(r2[C2.ws] || '')
+        _ws: ws
       });
     }
 
