@@ -32,34 +32,12 @@ const fmtHdr = s => {
   return `<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`;
 };
 
-/* ✅ pulse css'ini JS ile inject (index.html değiştirmeyelim) */
-let _pulseCssAdded = false;
-function ensurePulseCss() {
-  if (_pulseCssAdded) return;
-  _pulseCssAdded = true;
-  const st = document.createElement('style');
-  st.textContent = `
-@keyframes namePulse {
-  0%   { text-shadow: 0 0 0 rgba(134,239,172,0); }
-  55%  { text-shadow: 0 0 14px rgba(134,239,172,.75); }
-  100% { text-shadow: 0 0 0 rgba(134,239,172,0); }
-}
-.namePulse {
-  animation: namePulse 1000ms ease-in-out infinite;
-  will-change: text-shadow;
-}
-`;
-  document.head.appendChild(st);
-}
-ensurePulseCss();
-
-const cellName = (txt, href, pulse = false) => {
+const cellName = (txt, href) => {
   const v = (txt ?? '').toString();
   const u = href || '';
-  const cls = `nm${pulse ? ' namePulse' : ''}`;
   return u
-    ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
-    : `<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`;
+    ? `<a class="nm" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
+    : `<span class="nm" title="${esc(v)}">${esc(v)}</span>`;
 };
 
 let _raf = 0, _bound = false;
@@ -148,6 +126,8 @@ export function createRenderer({ ui } = {}) {
 
     /* =========================
        ✅ 2. Liste (t2 - Eşleşmeyenler)
+       - Artık app.js "zip" yaptığı için T-Soft aşağı kaymaz
+       - Burada sadece görsel splitter/padding ekliyoruz
        ========================= */
     const sec = $('unmatchedSection');
     const ut = $('unmatchedTitle');
@@ -166,32 +146,30 @@ export function createRenderer({ ui } = {}) {
         `<th title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
       ).join('');
 
+      const splitStyle = `border-left:1px solid #1f2430;padding-left:12px;`;
+
       const body2 = U.map((r, i) => {
         const seq = r["Sıra"] ?? String(i + 1);
         const brand = r["Marka"] ?? '';
 
         const cNm = r["Compel Ürün Adı"] ?? '';
         const cLn = r._clink || '';
-        const cPulse = !!r._pulseC;
 
         const tNm = r["T-Soft Ürün Adı"] ?? '';
         const tLn = r._seo || '';
 
         const dNm = r["Depo Ürün Adı"] ?? '';
-        const dPulse = !!r._pulseD;
 
-        const compelCell = cNm ? cellName(cNm, cLn, cPulse) : `<span class="cellTxt">—</span>`;
-        const tsoftCell  = tNm ? cellName(tNm, tLn, false) : `<span class="cellTxt">—</span>`;
-        const depoCell   = dNm
-          ? `<span class="cellTxt${dPulse ? ' namePulse' : ''}" title="${esc(dNm)}">${esc(dNm)}</span>`
-          : `<span class="cellTxt">—</span>`;
+        const compelCell = cNm ? cellName(cNm, cLn) : `<span class="cellTxt">—</span>`;
+        const tsoftCell  = tNm ? cellName(tNm, tLn) : `<span class="cellTxt">—</span>`;
+        const depoCell   = dNm ? `<span class="cellTxt" title="${esc(dNm)}">${esc(dNm)}</span>` : `<span class="cellTxt">—</span>`;
 
         return `<tr id="u_${i}">
           <td class="seqCell" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
           <td title="${esc(brand)}"><span class="cellTxt">${esc(brand)}</span></td>
           <td class="left nameCell">${compelCell}</td>
-          <td class="left nameCell">${tsoftCell}</td>
-          <td class="left">${depoCell}</td>
+          <td class="left nameCell" style="${splitStyle}">${tsoftCell}</td>
+          <td class="left" style="${splitStyle}">${depoCell}</td>
         </tr>`;
       }).join('');
 
