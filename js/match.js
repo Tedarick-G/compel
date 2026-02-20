@@ -15,24 +15,18 @@ export const COLS = [
   "EAN (Compel)", "EAN (T-Soft)", "EAN Durumu"
 ];
 
-/* ✅ Marka alias:
-   - normalize edilen değer her yerde ortak anahtar olur (Compel/T-Soft/Aide)
-*/
 const ALIAS = new Map([
-  // Mevcutlar
   ['ALLEN & HEATH', 'ALLEN HEATH'],
   ['MARANTZ PROFESSIONAL', 'MARANTZ'],
   ['RUPERT NEVE DESIGNS', 'RUPERT NEVE'],
   ['RØDE', 'RODE'],
   ['RØDE X', 'RODE'],
 
-  // ✅ Compel(UI) → Aide karşılıkları
   ['DENON DJ', 'DENON'],
   ['FENDER STUDIO', 'FENDER'],
   ['UNIVERSAL AUDIO', 'UNIVERSAL'],
   ['WARM AUDIO', 'WARMAUDIO'],
 
-  // Yaygın varyasyonlar
   ['M AUDIO', 'M-AUDIO'],
   ['MARANTZ PROF.', 'MARANTZ']
 ]);
@@ -71,7 +65,7 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
 
   // results
   let R = [], U = [];
-  let UT = []; // ✅ T-Soft tarafında Compel'e EAN/Barkod veya WS/Kod ile eşleşmeyenler
+  let UT = []; // ✅ T-Soft tarafında "Compel’de olmayanlar"
 
   const key = (r, fn) => {
     const b = fn(r[C1.marka] || '');
@@ -92,7 +86,6 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
       if (sup) idxS.set(sup, r);
     }
 
-    // Eski datalist'ler (UI kaldırıldı ama sorun yok)
     const wsDl = $('wsCodes'), supDl = $('supCodes');
     if (wsDl) wsDl.innerHTML = '';
     if (supDl) supDl.innerHTML = '';
@@ -137,7 +130,6 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
     return dNum > 0 ? 'Stokta Var' : 'Stokta Yok';
   };
 
-  // ✅ Beklenen = (Compel VAR) OR (Depo > 0)
   const stokDur = (compelRaw, tsoftRaw, dNum, ok) => {
     if (!ok) return '—';
     const a = inStock(compelRaw, { source: 'compel' });
@@ -186,40 +178,50 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
 
     R = []; U = []; UT = [];
 
-    // ✅ UT filtresi için: Compel tarafındaki tüm EAN’lar ve Ürün Kodları seti
+    // ✅ Compel tarafı "varlık" setleri
     const compelEanSet = new Set();
     const compelCodeSet = new Set();
-
     for (const r1 of L1) {
       for (const e of eans(r1[C1.ean] || '')) compelEanSet.add(e);
       const code = T(r1[C1.urunKodu] || '');
       if (code) compelCodeSet.add(code);
     }
 
-    // 1) Compel -> T-Soft eşleştirme (ana tablo)
+    // ✅ Ana listede kullanılan (eşleşmiş) T-Soft satırları
+    const matchedAnyR2 = new Set(); // Set<object> (L2 row ref)
+
+    // 1) Compel -> T-Soft eşleştirme
     for (const r1 of L1) {
       let r2 = byEan(r1), how = r2 ? 'EAN' : '';
       if (!r2) { r2 = byCompelCodeWs(r1); if (r2) how = 'KOD'; }
       if (!r2) { r2 = byMap(r1); if (r2) how = 'JSON'; }
 
+      if (r2) matchedAnyR2.add(r2); // ✅ hangi yöntem olursa olsun "eşleşmiş" say
+
       const row = outRow(r1, r2, how);
       R.push(row);
-      if (!row._m) U.push(row); // Compel’de var, T-Soft’ta hiç eşleşmedi
+      if (!row._m) U.push(row);
     }
 
-    // 2) T-Soft tarafı: SADECE "Compel’e EAN/Barkod veya WS/Kod ile eşleşmeyenler"
-    // ✅ Burada artık Compel eşleşenler asla listelenmez.
+    // 2) T-Soft tarafı: Compel’de olmayanlar (strict)
     const seen = new Set(); // brand||sup||name
     for (const r2 of L2) {
-      // ✅ 2.1 EAN/Barkod ile Compel’e eşleşiyorsa SKIP
-      const barkList = eans(r2[C2.barkod] || '');
-      let barkMatch = false;
-      for (const b of barkList) { if (compelEanSet.has(b)) { barkMatch = true; break; } }
-      if (barkMatch) continue;
+      // ✅ 2.0 Ana listede herhangi bir Compel satırına eşleştirilmişse ASLA UT’ye girmez
+      if (matchedAnyR2.has(r2)) continue;
 
-      // ✅ 2.2 WS ile Compel Ürün Kodu eşleşiyorsa SKIP
+      // ✅ 2.1 Barkod Compel EAN’larıyla kesişiyorsa (Compel’de var demek) SKIP
+      const barkList = eans(r2[C2.barkod] || '');
+      let barkHit = false;
+      for (const b of barkList) { if (compelEanSet.has(b)) { barkHit = true; break; } }
+      if (barkHit) continue;
+
+      // ✅ 2.2 WS Compel ürün kodu ise SKIP
       const ws = T(r2[C2.ws] || '');
       if (ws && compelCodeSet.has(ws)) continue;
+
+      // ✅ 2.3 SUP (Tedarikçi Ürün Kodu) Compel ürün kodu ise SKIP
+      const sup = T(r2[C2.sup] || '');
+      if (sup && compelCodeSet.has(sup)) continue;
 
       const brN = B(r2[C2.marka] || '');
       if (!brN) continue;
@@ -227,7 +229,6 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
       const nm = T(r2[C2.urunAdi] || '');
       if (!nm) continue;
 
-      const sup = T(r2[C2.sup] || '');
       const key = (brN + '||' + (sup || '—') + '||' + nm).toLocaleLowerCase(TR).replace(/\s+/g, ' ').trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
@@ -256,7 +257,6 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
   }
 
   function manualMatch(i, ws, sup) {
-    // UI'da buton kaldırıldı ama fonksiyon dursun
     const r = U[i];
     if (!r) return false;
 
