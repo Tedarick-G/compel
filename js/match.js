@@ -15,12 +15,27 @@ export const COLS = [
   "EAN (Compel)", "EAN (T-Soft)", "EAN Durumu"
 ];
 
+/* ✅ Marka alias:
+   - UI/Compel marka adı ↔ Aide marka adı eşitlenecek
+   - Burada normalize edilen değer her yerde ortak anahtar olur (Compel/T-Soft/Aide)
+*/
 const ALIAS = new Map([
+  // Mevcutlar
   ['ALLEN & HEATH', 'ALLEN HEATH'],
   ['MARANTZ PROFESSIONAL', 'MARANTZ'],
   ['RUPERT NEVE DESIGNS', 'RUPERT NEVE'],
   ['RØDE', 'RODE'],
-  ['RØDE X', 'RODE']
+  ['RØDE X', 'RODE'],
+
+  // ✅ Senin verdiğin Compel → Aide karşılıkları
+  ['DENON DJ', 'DENON'],
+  ['FENDER STUDIO', 'FENDER'],
+  ['UNIVERSAL AUDIO', 'UNIVERSAL'],
+  ['WARM AUDIO', 'WARMAUDIO'],
+
+  // Yaygın varyasyonlar (zararsız)
+  ['M AUDIO', 'M-AUDIO'],
+  ['MARANTZ PROF.', 'MARANTZ']
 ]);
 
 const bRaw = s => (s ?? '').toString().trim().toLocaleUpperCase(TR).replace(/\s+/g, ' ');
@@ -57,7 +72,7 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
 
   // results
   let R = [], U = [];
-  let UT = []; // ✅ T-Soft tarafında (EAN + WS(KOD) ile Compel'e eşleşmeyenler)
+  let UT = []; // ✅ T-Soft tarafında (Compel'e EAN veya WS(KOD) ile eşleşmeyenler)
 
   const key = (r, fn) => {
     const b = fn(r[C1.marka] || '');
@@ -93,6 +108,7 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
     return null;
   }
 
+  // ✅ Compel Ürün Kodu ↔ T-Soft Web Servis Kodu
   function byCompelCodeWs(r1) {
     const code = T(r1[C1.urunKodu] || ''); if (!code) return null;
     const r2 = idxW.get(code) || null; if (!r2) return null;
@@ -171,19 +187,8 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
 
     R = []; U = []; UT = [];
 
-    // ✅ EAN veya WS(KOD) ile Compel'e eşleşmiş T-Soft kayıtlarını işaretle
-    // (SUP/JSON/MANUAL eşleştirmeleri "eşleşmiş" sayılmayacak)
-    const matchedTsoftKeys = new Set(); // brand||WS:xxx / brand||SUP:xxx
-
-    const markMatchedTsoft = (r2) => {
-      if (!r2) return;
-      const brN = B(r2[C2.marka] || '');
-      if (!brN) return;
-      const ws = T(r2[C2.ws] || '');
-      const sup = T(r2[C2.sup] || '');
-      if (ws) matchedTsoftKeys.add(`${brN}||WS:${ws}`);
-      if (sup) matchedTsoftKeys.add(`${brN}||SUP:${sup}`);
-    };
+    // ✅ T-Soft eşleşmiş sayılacaklar = SADECE (EAN) veya (Compel Ürün Kodu ↔ WS)
+    const matchedStrict = new Set(); // r2 object refs
 
     // 1) Compel -> T-Soft eşleştirme
     for (const r1 of L1) {
@@ -191,33 +196,27 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
       if (!r2) { r2 = byCompelCodeWs(r1); if (r2) how = 'KOD'; }
       if (!r2) { r2 = byMap(r1); if (r2) how = 'JSON'; }
 
-      // ✅ sadece EAN veya KOD eşleşmesi "eşleşmiş" sayılır (UT filtresi için)
-      if (r2 && (how === 'EAN' || how === 'KOD')) markMatchedTsoft(r2);
+      // ✅ sadece EAN/KOD eşleşmesi "strict match"
+      if (r2 && (how === 'EAN' || how === 'KOD')) matchedStrict.add(r2);
 
       const row = outRow(r1, r2, how);
       R.push(row);
-      if (!row._m) U.push(row); // Compel’de var, T-Soft’ta eşleşmedi
+      if (!row._m) U.push(row); // Compel’de var, T-Soft’ta eşleşmedi (hiç yok)
     }
 
-    // 2) T-Soft tarafı (products.csv): Compel’e göre eşleşmeyenler
-    // ✅ Kural: sadece (EAN veya WS/KOD) ile eşleşmiş olanlar listeden çıkar.
-    // ✅ SUP (Tedarikçi Ürün Kodu) eşleşmesi / JSON / MANUAL => "eşleşmiş" sayılmayacak, UT'de kalabilir.
+    // 2) T-Soft tarafı: Compel’e göre EAN/KOD ile eşleşmeyenler
+    // ✅ JSON / SUP / MANUAL gibi şeyler burada "eşleşmiş" sayılmaz → listelenebilir
     const seen = new Set(); // brand||sup||name
     for (const r2 of L2) {
+      if (matchedStrict.has(r2)) continue; // ✅ EAN veya KOD eşleşmişse UT'ye girmez
+
       const brN = B(r2[C2.marka] || '');
       if (!brN) continue;
 
       const nm = T(r2[C2.urunAdi] || '');
       if (!nm) continue;
 
-      const ws = T(r2[C2.ws] || '');
       const sup = T(r2[C2.sup] || '');
-
-      const wsHit = ws ? matchedTsoftKeys.has(`${brN}||WS:${ws}`) : false;
-      const supHit = sup ? matchedTsoftKeys.has(`${brN}||SUP:${sup}`) : false;
-
-      if (wsHit || supHit) continue; // ✅ EAN veya KOD ile eşleşmiş → UT'ye girmez
-
       const key = (brN + '||' + (sup || '—') + '||' + nm).toLocaleLowerCase(TR).replace(/\s+/g, ' ').trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
@@ -232,7 +231,7 @@ export function createMatcher({ getDepotAgg, isDepotReady } = {}) {
         "T-Soft Ürün Adı": nm,
         _seo: seoAbs,
         _sup: sup,
-        _ws: ws
+        _ws: T(r2[C2.ws] || '')
       });
     }
 
