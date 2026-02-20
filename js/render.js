@@ -1,0 +1,211 @@
+// js/render.js
+import { esc } from './utils.js';
+import { COLS } from './match.js';
+
+const $ = id => document.getElementById(id);
+
+const colGrp = w => `<colgroup>${w.map(x => `<col style="width:${x}%">`).join('')}</colgroup>`;
+
+// ✅ 1. tablo başlık metinleri (görünen label’lar)
+const HDR1 = {
+  "Sıra No": "Sıra",
+  "Marka": "Marka",
+  "Ürün Adı (Compel)": "Compel Ürün Adı",
+  "Ürün Adı (T-Soft)": "Tsoft Ürün Adı",
+  "Ürün Kodu (Compel)": "Compel Ürün Kodu",
+  "Ürün Kodu (T-Soft)": "T-Soft Ürün Kodu",
+  "Stok (Compel)": "Compel",
+  "Stok (Depo)": "Depo",
+  "Stok (T-Soft)": "T-Soft",
+  "Stok Durumu": "Stok Durumu",
+  "EAN (Compel)": "Compel EAN",
+  "EAN (T-Soft)": "T-Soft EAN",
+  "EAN Durumu": "EAN Durumu"
+};
+
+const disp = c => HDR1[c] || c;
+
+const fmtHdr = s => {
+  s = (s ?? '').toString();
+  const m = s.match(/^(.*?)(\s*\([^)]*\))\s*$/);
+  if (!m) return esc(s);
+  return `<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`;
+};
+
+/* ✅ pulse css'ini JS ile inject (index.html değiştirmeyelim) */
+let _pulseCssAdded = false;
+function ensurePulseCss() {
+  if (_pulseCssAdded) return;
+  _pulseCssAdded = true;
+  const st = document.createElement('style');
+  st.textContent = `
+@keyframes namePulse {
+  0%   { text-shadow: 0 0 0 rgba(134,239,172,0); }
+  55%  { text-shadow: 0 0 14px rgba(134,239,172,.75); }
+  100% { text-shadow: 0 0 0 rgba(134,239,172,0); }
+}
+.namePulse {
+  animation: namePulse 1000ms ease-in-out infinite;
+  will-change: text-shadow;
+}
+`;
+  document.head.appendChild(st);
+}
+ensurePulseCss();
+
+const cellName = (txt, href, pulse = false) => {
+  const v = (txt ?? '').toString();
+  const u = href || '';
+  const cls = `nm${pulse ? ' namePulse' : ''}`;
+  return u
+    ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
+    : `<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`;
+};
+
+let _raf = 0, _bound = false;
+const sched = () => { if (_raf) cancelAnimationFrame(_raf); _raf = requestAnimationFrame(adjustLayout); };
+const firstEl = td => td?.querySelector('.cellTxt,.nm,input,button,select,div') || null;
+
+function fitHeaderText(tableId) {
+  const t = $(tableId); if (!t) return;
+  const ths = t.querySelectorAll('thead th');
+  for (const th of ths) {
+    const sp = th.querySelector('.hTxt'); if (!sp) continue;
+    sp.style.transform = 'scaleX(1)';
+    const avail = Math.max(10, th.clientWidth - 2);
+    const need = sp.scrollWidth || 0;
+    const s = need > avail ? (avail / need) : 1;
+    sp.style.transform = `scaleX(${s})`;
+  }
+}
+
+function adjustLayout() {
+  _raf = 0;
+  fitHeaderText('t1'); fitHeaderText('t2');
+
+  const applyNameFit = (tableId) => {
+    const t = $(tableId); if (!t) return;
+    const rows = t.querySelectorAll('tbody tr'), G = 6;
+    for (const tr of rows) {
+      const nameTds = tr.querySelectorAll('td.nameCell'); if (!nameTds.length) continue;
+      for (let i = nameTds.length - 1; i >= 0; i--) {
+        const td = nameTds[i], nm = td.querySelector('.nm'); if (!nm) continue;
+        const next = td.nextElementSibling;
+        const tdR = td.getBoundingClientRect(), nmR = nm.getBoundingClientRect();
+        let maxRight = tdR.right - G;
+        if (next) {
+          const el = firstEl(next);
+          if (el) { const r = el.getBoundingClientRect(); maxRight = Math.min(tdR.right + next.getBoundingClientRect().width, r.left - G); }
+          else maxRight = next.getBoundingClientRect().right - G;
+        }
+        nm.style.maxWidth = Math.max(40, maxRight - nmR.left) + 'px';
+      }
+    }
+  };
+
+  applyNameFit('t1');
+  applyNameFit('t2');
+
+  if (!_bound) { _bound = true; addEventListener('resize', sched); }
+}
+
+export function createRenderer({ ui } = {}) {
+  function render(R, Ux, depotReady) {
+    /* =========================
+       ✅ 1. Liste (t1)
+       ========================= */
+    const W1 = [4, 8, 14, 14, 7, 7, 6, 6, 6, 6, 8, 8, 6];
+
+    const head = COLS.map(c => {
+      const l = disp(c);
+      return `<th title="${esc(l)}"><span class="hTxt">${fmtHdr(l)}</span></th>`;
+    }).join('');
+
+    const body = (R || []).map(r => `<tr>${COLS.map((c, idx) => {
+      const v = r[c] ?? '';
+      if (c === "Ürün Adı (Compel)") return `<td class="left nameCell">${cellName(v, r._clink || '')}</td>`;
+      if (c === "Ürün Adı (T-Soft)") return `<td class="left nameCell">${cellName(v, r._seo || '')}</td>`;
+
+      const seq = idx === 0, sd = c === "Stok Durumu", ed = c === "EAN Durumu";
+      const ean = c === "EAN (Compel)" || c === "EAN (T-Soft)";
+
+      const isBad = (sd && String(v || '') === 'Hatalı') || (ed && String(v || '') === 'Eşleşmedi');
+      const cls = [
+        seq ? 'seqCell' : '',
+        sd || ed ? 'statusBold' : '',
+        ean ? 'eanCell' : '',
+        isBad ? 'flagBad' : ''
+      ].filter(Boolean).join(' ');
+
+      const title = (c === "Stok (Depo)" && depotReady)
+        ? `${v} (Depo Toplam: ${r._draw ?? '0'})`
+        : v;
+
+      return `<td class="${cls}" title="${esc(title)}"><span class="cellTxt">${esc(v)}</span></td>`;
+    }).join('')}</tr>`).join('');
+
+    $('t1').innerHTML = colGrp(W1) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+
+    /* =========================
+       ✅ 2. Liste (t2 - Eşleşmeyenler)
+       ========================= */
+    const sec = $('unmatchedSection');
+    const ut = $('unmatchedTitle');
+    if (ut) ut.textContent = 'Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi';
+
+    const U = Array.isArray(Ux) ? Ux : [];
+
+    if (!U.length) {
+      if (sec) sec.style.display = 'none';
+    } else {
+      if (sec) sec.style.display = '';
+      const UCOLS = ["Sıra", "Marka", "Compel Ürün Adı", "T-Soft Ürün Adı", "Depo Ürün Adı"];
+      const W2 = [6, 12, 26, 28, 28];
+
+      const head2 = UCOLS.map(c =>
+        `<th title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
+      ).join('');
+
+      const body2 = U.map((r, i) => {
+        const seq = r["Sıra"] ?? String(i + 1);
+        const brand = r["Marka"] ?? '';
+
+        const cNm = r["Compel Ürün Adı"] ?? '';
+        const cLn = r._clink || '';
+        const cPulse = !!r._pulseC;
+
+        const tNm = r["T-Soft Ürün Adı"] ?? '';
+        const tLn = r._seo || '';
+
+        const dNm = r["Depo Ürün Adı"] ?? '';
+        const dPulse = !!r._pulseD;
+
+        const compelCell = cNm ? cellName(cNm, cLn, cPulse) : `<span class="cellTxt">—</span>`;
+        const tsoftCell  = tNm ? cellName(tNm, tLn, false) : `<span class="cellTxt">—</span>`;
+        const depoCell   = dNm
+          ? `<span class="cellTxt${dPulse ? ' namePulse' : ''}" title="${esc(dNm)}">${esc(dNm)}</span>`
+          : `<span class="cellTxt">—</span>`;
+
+        return `<tr id="u_${i}">
+          <td class="seqCell" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
+          <td title="${esc(brand)}"><span class="cellTxt">${esc(brand)}</span></td>
+          <td class="left nameCell">${compelCell}</td>
+          <td class="left nameCell">${tsoftCell}</td>
+          <td class="left">${depoCell}</td>
+        </tr>`;
+      }).join('');
+
+      $('t2').innerHTML = colGrp(W2) + `<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`;
+    }
+
+    const matched = (R || []).filter(x => x._m).length;
+    ui?.setChip?.('sum', `✓${matched} • ✕${(R || []).length - matched}`, 'muted');
+
+    const dl1 = $('dl1');
+    if (dl1) dl1.disabled = !(R || []).length;
+
+    sched();
+  }
+
+  return { render };
+}
