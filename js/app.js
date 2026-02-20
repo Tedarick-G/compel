@@ -119,8 +119,7 @@ let BRANDS = [];
 let SELECTED = new Set();
 let brandPrefix = 'Hazır';
 
-/* ✅ Depo karşılaştırması için:
-   Compel'e SADECE (EAN veya WS/KOD) ile eşleşmiş T-Soft kayıtlarının sup kodları (marka bazlı) */
+/* ✅ Depo için: sadece Compel↔T-Soft EAN/KOD ile eşleşmiş ürünlerin sup kodları (marka bazlı) */
 let TSOFT_OK_SUP_BY_BRAND = new Map();
 
 const codeNorm = (s) =>
@@ -613,19 +612,20 @@ const matcher = createMatcher({
 const renderer = createRenderer({ ui });
 
 /* ✅ Depo karşılaştırması için:
-   TSOFT_OK_SUP_BY_BRAND = sadece Compel'e (EAN veya WS/KOD) ile eşleşmiş T-Soft sup kodları */
+   - "OK" sayılanlar = Compel ↔ T-Soft EAN veya KOD(WS) eşleşmesi
+   - Bu eşleşmelerin T-Soft "Tedarikçi Ürün Kodu" seti (marka bazlı) çıkarılır
+   - Depo sütununda: bu OK setinde olmayan (eşleşmemiş) Aide stok kodları listelenir
+*/
 function rebuildTsoftOkSupByBrand() {
   TSOFT_OK_SUP_BY_BRAND = new Map();
 
   const { R } = matcher.getResults();
   for (const row of (R || [])) {
     if (!row?._m) continue;
-
-    // sadece EAN veya WS (KOD) eşleşmesi
     if (row._how !== 'EAN' && row._how !== 'KOD') continue;
 
     const br = row._bn || normBrand(row["Marka"] || '');
-    const sup = T(row["Ürün Kodu (T-Soft)"] || ''); // outRow'da sup buraya yazılıyor
+    const sup = T(row["Ürün Kodu (T-Soft)"] || '');
     if (!br || !sup) continue;
 
     if (!TSOFT_OK_SUP_BY_BRAND.has(br)) TSOFT_OK_SUP_BY_BRAND.set(br, new Set());
@@ -639,9 +639,12 @@ function rebuildTsoftOkSupByBrand() {
 }
 
 /* ✅ Eşleşmeyenler tablosu:
-   aynı MARKA içinde (Compel / T-Soft / Depo) sütunlarını satır satır "zip"le */
+   - marka bazlı blok
+   - her marka içinde Compel / T-Soft / Depo listelerini satır satır "zip"ler
+   - böylece “Compel bitince T-Soft aşağı kaydı” olmaz, aynı satırlarda durur
+*/
 function buildUnifiedUnmatched({ Uc, Ut, Ud }) {
-  const g = new Map(); // brNorm -> { brandDisp, c:[], t:[], d:[] }
+  const g = new Map(); // brNorm -> { brNorm, brandDisp, c:[], t:[], d:[] }
 
   const getGrp = (brNorm, brandDisp) => {
     const k = String(brNorm || '').trim();
@@ -652,46 +655,52 @@ function buildUnifiedUnmatched({ Uc, Ut, Ud }) {
     return grp;
   };
 
-  // 1) Compel unmatched
+  // 1) Compel: Compel’de var ama T-Soft’ta hiç eşleşmeyenler
   for (const r of (Uc || [])) {
     const bDisp = String(r["Marka"] || '').trim();
-    const bNorm = normBrand(bDisp || r._bn || '');
+    const bNorm = normBrand(r._bn || bDisp || '');
     const grp = getGrp(bNorm, bDisp);
     if (!grp) continue;
+
     const nm = String(r["Ürün Adı (Compel)"] || '').trim();
     if (!nm) continue;
+
     grp.c.push({
       name: nm,
       link: r._clink || ''
     });
   }
 
-  // 2) T-Soft unmatched
+  // 2) T-Soft: Compel’e EAN veya KOD(WS) ile eşleşmeyenler (SADECE UNMATCHED)
   for (const r of (Ut || [])) {
     const bDisp = String(r["Marka"] || '').trim();
     const bNorm = normBrand(r._bn || bDisp || '');
     const grp = getGrp(bNorm, bDisp);
     if (!grp) continue;
+
     const nm = String(r["T-Soft Ürün Adı"] || '').trim();
     if (!nm) continue;
+
     grp.t.push({
       name: nm,
       link: r._seo || ''
     });
   }
 
-  // 3) Depo unmatched
+  // 3) Depo: Compel markaları içinde, "OK eşleşme" setinde olmayan Aide modelleri
   for (const r of (Ud || [])) {
     const bDisp = String(r["Marka"] || '').trim();
     const bNorm = normBrand(r._bn || bDisp || '');
     const grp = getGrp(bNorm, bDisp);
     if (!grp) continue;
+
     const nm = String(r["Depo Ürün Adı"] || '').trim();
     if (!nm) continue;
+
     grp.d.push({ name: nm });
   }
 
-  // Sort brands (alphabetic) + each list
+  // Sort brands + lists
   const brandArr = [...g.values()].sort((a, b) =>
     String(a.brandDisp || '').localeCompare(String(b.brandDisp || ''), 'tr', { sensitivity: 'base' })
   );
@@ -706,13 +715,15 @@ function buildUnifiedUnmatched({ Uc, Ut, Ud }) {
   const out = [];
   for (const grp of brandArr) {
     const n = Math.max(grp.c.length, grp.t.length, grp.d.length);
+    if (n === 0) continue;
+
     for (let i = 0; i < n; i++) {
       const c = grp.c[i] || null;
       const t = grp.t[i] || null;
       const d = grp.d[i] || null;
 
       out.push({
-        "Sıra": "", // aşağıda 1..N doldurulacak
+        "Sıra": "",
         "Marka": grp.brandDisp || grp.brNorm,
         "Compel Ürün Adı": c ? c.name : "",
         "T-Soft Ürün Adı": t ? t.name : "",
@@ -723,7 +734,6 @@ function buildUnifiedUnmatched({ Uc, Ut, Ud }) {
     }
   }
 
-  // Sıra 1..N
   for (let i = 0; i < out.length; i++) out[i]["Sıra"] = String(i + 1);
   return out;
 }
@@ -799,7 +809,6 @@ async function generate() {
     clearOnlyLists();
     matcher.resetAll();
 
-    // reset maps/sets
     TSOFT_OK_SUP_BY_BRAND = new Map();
     COMPEL_BRANDS_NORM = new Set();
 
