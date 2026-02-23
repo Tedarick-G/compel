@@ -11,7 +11,13 @@ const HDR1={
   "EAN (Compel)":"Compel EAN","EAN (T-Soft)":"T-Soft EAN"
 };
 const disp=c=>HDR1[c]||c;
-const fmtHdr=s=>{s=(s??'').toString();const m=s.match(/^(.*?)(\s*\([^)]*\))\s*$/);return m?`<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`:esc(s)};
+const fmtHdr=s=>{
+  s=(s??'').toString();
+  const m=s.match(/^(.*?)(\s*\([^)]*\))\s*$/);
+  return m
+    ? `<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`
+    : esc(s);
+};
 
 let _css=false;
 function css(){
@@ -43,27 +49,29 @@ th.tightCol,td.tightCol{padding-left:4px!important;padding-right:4px!important}
 td.eanCell{white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important}
 td.eanCell .cellTxt{white-space:nowrap!important}
 
-/* ✅ EŞLEŞMEYENLER: yatay kaydırma/slide yok, taşma yok.
-   İçerik kısaltma yok, wrap yok. Sığmazsa JS scaleX ile sığdırır. */
-#t2{
+/* ✅ İKİ TABLO DA PENCEREYE SIĞSIN:
+   - yatay kaydırma yok
+   - sütun gizleme yok
+   - sığmıyorsa JS scaleX ile tabloyu sığdırır */
+.tableWrap{overflow-x:hidden!important}
+
+/* natural width ölçümü için auto layout (JS scrollWidth doğru olsun) */
+#t1,#t2{
   table-layout:auto!important;
-  width:100%!important;
+  width:max-content!important; /* doğal genişlik */
+  max-width:none!important;
   transform-origin:left top;
 }
-#t2 th,#t2 td{
-  white-space:nowrap!important;
-  overflow:visible!important;
-  text-overflow:clip!important;
-}
-#t2 td.tightCol,#t2 th.tightCol{width:1%!important}
 `;
-  document.head.appendChild(st)
+  document.head.appendChild(st);
 }
 css();
 
 const cellName=(txt,href,pulse=false)=>{
   const v=(txt??'').toString(),u=href||'',cls=`nm${pulse?' namePulse':''}`;
-  return u?`<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`:`<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`
+  return u
+    ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
+    : `<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`;
 };
 
 let _raf=0,_bound=false;
@@ -71,19 +79,13 @@ const sched=()=>{_raf&&cancelAnimationFrame(_raf);_raf=requestAnimationFrame(adj
 const firstEl=td=>td?.querySelector('.cellTxt,.nm,input,button,select,div')||null;
 
 function enforceSticky(){
+  // ✅ yatay kaydırma kapalı, dikey listeler akabilsin
   document.querySelectorAll('.tableWrap').forEach(w=>{
-    // ✅ Alttaki tablo: yatay kaydırma yok
-    if(w.querySelector('#t2')){
-      w.style.overflowX='hidden';
-      w.style.overflowY='auto';
-      w.style.overflow='hidden auto';
-      return;
-    }
-    w.style.overflow='visible';
-    w.style.overflowX='visible';
-    w.style.overflowY='visible';
+    w.style.overflowX='hidden';
+    w.style.overflowY='auto';
+    w.style.overflow='hidden auto';
   });
-  document.documentElement.style.setProperty('--theadTop','0px')
+  document.documentElement.style.setProperty('--theadTop','0px');
 }
 
 function fitHeader(tableId){
@@ -92,28 +94,27 @@ function fitHeader(tableId){
     const sp=th.querySelector('.hTxt');if(!sp)return;
     sp.style.transform='scaleX(1)';
     const avail=Math.max(10,th.clientWidth-2),need=sp.scrollWidth||0,s=need>avail?(avail/need):1;
-    sp.style.transform=`scaleX(${s})`
-  })
+    sp.style.transform=`scaleX(${s})`;
+  });
 }
 
-// ✅ Yeni: tablo ekrana sığmıyorsa scaleX ile sığdır (yatay slide yok, taşma yok)
+// ✅ tablo ekrana sığmıyorsa scaleX ile sığdır (sütun gizleme yok, yatay scroll yok)
 function fitTableToWrap(tableId){
   const t=$(tableId);
   if(!t) return;
+
   const wrap=t.closest('.tableWrap') || t.parentElement;
   if(!wrap) return;
 
   // reset
   t.style.transform='scaleX(1)';
 
-  // ölç
   const wrapW=wrap.clientWidth||0;
   const tableW=t.scrollWidth||0;
   if(wrapW<=0||tableW<=0) return;
 
   const s=Math.min(1, wrapW / tableW);
 
-  // çok küçük oynamaları engelle
   if(s < 0.999){
     t.style.transform=`scaleX(${s})`;
   }else{
@@ -124,12 +125,16 @@ function fitTableToWrap(tableId){
 function adjust(){
   _raf=0;
   enforceSticky();
+
+  // önce header fit
   fitHeader('t1');
   fitHeader('t2');
 
-  // ✅ alttaki tabloyu ekrana sığdır
+  // ✅ iki tabloyu da pencereye sığdır
+  fitTableToWrap('t1');
   fitTableToWrap('t2');
 
+  // name hücre maxWidth ayarı (mevcut davranış)
   const nameFit=tableId=>{
     const t=$(tableId);if(!t)return;
     const rows=t.querySelectorAll('tbody tr'),G=6;
@@ -141,163 +146,172 @@ function adjust(){
         let maxRight=tdR.right-G;
         if(next){
           const el=firstEl(next);
-          if(el){const r=el.getBoundingClientRect();maxRight=Math.min(tdR.right+next.getBoundingClientRect().width,r.left-G)}
-          else maxRight=next.getBoundingClientRect().right-G
+          if(el){
+            const r=el.getBoundingClientRect();
+            maxRight=Math.min(tdR.right+next.getBoundingClientRect().width,r.left-G);
+          } else {
+            maxRight=next.getBoundingClientRect().right-G;
+          }
         }
-        nm.style.maxWidth=Math.max(40,maxRight-nmR.left)+'px'
+        nm.style.maxWidth=Math.max(40,maxRight-nmR.left)+'px';
       }
     }
   };
   nameFit('t1');
   nameFit('t2');
 
-  if(!_bound){_bound=true;addEventListener('resize',sched)}
+  if(!_bound){_bound=true;addEventListener('resize',sched);}
 }
 
-const fmtNum=n=>{const x=Number(n);return Number.isFinite(x)?(Math.round(x)===x?String(x):String(x)):'0'};
+const fmtNum=n=>{
+  const x=Number(n);
+  return Number.isFinite(x)?(Math.round(x)===x?String(x):String(x)):'0';
+};
 
 export function createRenderer({ui}={}){
-  return{render(R,Ux,depotReady){
-    const T1_SEP_LEFT=new Set(["Ürün Kodu (Compel)","Ürün Kodu (T-Soft)","Stok (Compel)","EAN (Compel)"]);
-    const tight=c=>(c==="Ürün Kodu (Compel)"||c==="Ürün Kodu (T-Soft)");
-    const NARROW_ONLY=new Set(["Sıra No","Marka","Ürün Kodu (Compel)","Ürün Kodu (T-Soft)"]);
-    const W1=[3,5,6,22,6,22,7,7,7,7,8];
+  return{
+    render(R,Ux,depotReady){
+      const T1_SEP_LEFT=new Set(["Ürün Kodu (Compel)","Ürün Kodu (T-Soft)","Stok (Compel)","EAN (Compel)"]);
+      const tight=c=>(c==="Ürün Kodu (Compel)"||c==="Ürün Kodu (T-Soft)");
+      const NARROW_ONLY=new Set(["Sıra No","Marka","Ürün Kodu (Compel)","Ürün Kodu (T-Soft)"]);
+      const W1=[3,5,6,22,6,22,7,7,7,7,8];
 
-    const head=COLS.map(c=>{
-      const l=disp(c);
-      const cls=[
-        T1_SEP_LEFT.has(c)?'sepL':'',
-        tight(c)?'hdrThin hdrTight':'',
-        NARROW_ONLY.has(c)?'tightCol':''
-      ].filter(Boolean).join(' ');
-      return `<th class="${cls}" title="${esc(l)}"><span class="hTxt">${fmtHdr(l)}</span></th>`
-    }).join('');
+      const head=COLS.map(c=>{
+        const l=disp(c);
+        const cls=[
+          T1_SEP_LEFT.has(c)?'sepL':'',
+          tight(c)?'hdrThin hdrTight':'',
+          NARROW_ONLY.has(c)?'tightCol':''
+        ].filter(Boolean).join(' ');
+        return `<th class="${cls}" title="${esc(l)}"><span class="hTxt">${fmtHdr(l)}</span></th>`;
+      }).join('');
 
-    // ✅ Üst tablo sadece eşleşenleri gösterir
-    // Alfabetik: Marka > Compel Ürün Adı > Compel Ürün Kodu > T-Soft Ürün Adı (stabil)
-    const normS=s=>String(s??'').trim();
-    const cmpTR=(a,b)=>normS(a).localeCompare(normS(b),'tr',{sensitivity:'base'});
-    const Rview=(R||[])
-      .filter(r=>!!r?._m)
-      .map((row,idx)=>({row,idx}))
-      .sort((A,B)=>{
-        const a=A.row,b=B.row;
-        const ab=cmpTR(a?.["Marka"],b?.["Marka"]); if(ab) return ab;
-        const an=cmpTR(a?.["Ürün Adı (Compel)"],b?.["Ürün Adı (Compel)"]); if(an) return an;
-        const ac=cmpTR(a?.["Ürün Kodu (Compel)"],b?.["Ürün Kodu (Compel)"]); if(ac) return ac;
-        const tn=cmpTR(a?.["Ürün Adı (T-Soft)"],b?.["Ürün Adı (T-Soft)"]); if(tn) return tn;
-        return A.idx-B.idx;
-      })
-      .map(x=>x.row);
+      // ✅ Üst tablo sadece eşleşenleri gösterir
+      const normS=s=>String(s??'').trim();
+      const cmpTR=(a,b)=>normS(a).localeCompare(normS(b),'tr',{sensitivity:'base'});
+      const Rview=(R||[])
+        .filter(r=>!!r?._m)
+        .map((row,idx)=>({row,idx}))
+        .sort((A,B)=>{
+          const a=A.row,b=B.row;
+          const ab=cmpTR(a?.["Marka"],b?.["Marka"]); if(ab) return ab;
+          const an=cmpTR(a?.["Ürün Adı (Compel)"],b?.["Ürün Adı (Compel)"]); if(an) return an;
+          const ac=cmpTR(a?.["Ürün Kodu (Compel)"],b?.["Ürün Kodu (Compel)"]); if(ac) return ac;
+          const tn=cmpTR(a?.["Ürün Adı (T-Soft)"],b?.["Ürün Adı (T-Soft)"]); if(tn) return tn;
+          return A.idx-B.idx;
+        })
+        .map(x=>x.row);
 
-    const body=(Rview||[]).map((r,rowIdx)=>`<tr>${COLS.map((c,idx)=>{
-      let v=r[c]??'';
-      if(c==="Sıra No") v=String(rowIdx+1);
+      const body=(Rview||[]).map((r,rowIdx)=>`<tr>${COLS.map((c,idx)=>{
+        let v=r[c]??'';
+        if(c==="Sıra No") v=String(rowIdx+1);
 
-      if(c==="Ürün Adı (Compel)")return `<td class="left nameCell">${cellName(v,r._clink||'')}</td>`;
-      if(c==="Ürün Adı (T-Soft)"){
-        const txt=(v??'').toString().trim();
-        return `<td class="left nameCell">${cellName(txt,r._seo||'')}</td>`;
+        if(c==="Ürün Adı (Compel)")return `<td class="left nameCell">${cellName(v,r._clink||'')}</td>`;
+        if(c==="Ürün Adı (T-Soft)"){
+          const txt=(v??'').toString().trim();
+          return `<td class="left nameCell">${cellName(txt,r._seo||'')}</td>`;
+        }
+
+        const seq=idx===0;
+        const ean=(c==="EAN (Compel)"||c==="EAN (T-Soft)");
+        const eanBad=(c==="EAN (T-Soft)"&&r?._eanBad===true);
+        const stokBad=(c==="Stok (T-Soft)"&&r?._stokBad===true);
+        const bad=eanBad||stokBad;
+
+        const cls=[
+          T1_SEP_LEFT.has(c)?'sepL':'',
+          seq?'seqCell':'',
+          ean?'eanCell':'',
+          bad?'flagBad':'',
+          NARROW_ONLY.has(c)?'tightCol':''
+        ].filter(Boolean).join(' ');
+
+        const title=(c==="Stok (Depo)"&&depotReady)?`${v} (Depo Toplam: ${r._draw??'0'})`:v;
+        return `<td class="${cls}" title="${esc(title)}"><span class="cellTxt">${esc(v)}</span></td>`;
+      }).join('')}</tr>`).join('');
+
+      $('t1').innerHTML=colGrp(W1)+`<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+
+      const sec=$('unmatchedSection'),ut=$('unmatchedTitle');
+      ut&&(ut.textContent='Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi');
+      const U=Array.isArray(Ux)?Ux:[];
+      if(!U.length){
+        sec&&(sec.style.display='none');
+      }else{
+        sec&&(sec.style.display='');
+
+        const UCOLS=[
+          "Sıra",
+          "Marka",
+          "Compel Ürün Kodu",
+          "Compel Ürün Adı",
+          "T-Soft Ürün Kodu",
+          "T-Soft Ürün Adı",
+          "Aide Ürün Kodu",
+          "Aide Ürün Adı"
+        ];
+
+        const W2=[1,1,1,22,1,22,1,22];
+
+        const head2=UCOLS.map(c=>{
+          const sep=(c==="Compel Ürün Kodu"||c==="T-Soft Ürün Kodu"||c==="Aide Ürün Kodu")?' sepL':'';
+          const tightCol=(c==="Sıra"||c==="Marka"||c==="Compel Ürün Kodu"||c==="T-Soft Ürün Kodu"||c==="Aide Ürün Kodu")?' tightCol':'';
+          return `<th class="${(sep+tightCol).trim()}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
+        }).join('');
+
+        const body2=U.map((r,i)=>{
+          const seq=r["Sıra"]??String(i+1),brand=r["Marka"]??'';
+
+          const cCode=(r["Compel Ürün Kodu"]??r["Ürün Kodu (Compel)"]??'').toString().trim();
+          const cNm=r["Compel Ürün Adı"]??'',cLn=r._clink||'',cPulse=!!r._pulseC;
+
+          const tCode=(r["T-Soft Ürün Kodu"]??'').toString().trim();
+          const tNm=r["T-Soft Ürün Adı"]??'',tLn=r._seo||'';
+
+          const aCode=(r["Aide Ürün Kodu"]??'').toString().trim();
+          const aNm=r["Aide Ürün Adı"]??r["Depo Ürün Adı"]??'',aPulse=!!r._pulseD;
+
+          const cNum=stockToNumber(r._cstokraw??'',{source:'compel'});
+          const cTag=cNm?(cNum<=0?'(Stok Yok)':'(Stok Var)'):'';
+
+          const tAct=r._taktif,tStock=Number(r._tstok??0);
+          const tTag=tNm?(tAct===true?`(Aktif: ${fmtNum(tStock)} Stok)`:(tAct===false?'(Pasif)':'')):'';
+
+          const aNum=Number(r._dstok??0);
+          const aTag=aNm?(aNum<=0?'(Stok Yok)':`(Stok: ${fmtNum(aNum)})`):'';
+
+          const compelCode=cCode?`<span class="cellTxt" title="${esc(cCode)}">${esc(cCode)}</span>`:`<span class="cellTxt">—</span>`;
+          const tsoftCode=tCode?`<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>`:`<span class="cellTxt">—</span>`;
+          const aideCode=aCode?`<span class="cellTxt" title="${esc(aCode)}">${esc(aCode)}</span>`:`<span class="cellTxt">—</span>`;
+
+          const compel=cNm?`<div class="tagFlex"><span class="tagLeft">${cellName(cNm,cLn,cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>`:`<span class="cellTxt">—</span>`;
+          const tsoft=tNm?`<div class="tagFlex"><span class="tagLeft">${cellName(tNm,tLn,false)}</span><span class="tagRight">${esc(tTag)}</span></div>`:`<span class="cellTxt">—</span>`;
+          const aide=aNm?`<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse?' namePulse':''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>`:`<span class="cellTxt">—</span>`;
+
+          return `<tr id="u_${i}">
+            <td class="seqCell tightCol" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
+            <td class="tightCol" title="${esc(brand)}"><span class="cellTxt">${esc(brand)}</span></td>
+
+            <td class="tightCol sepL" title="${esc(cCode)}">${compelCode}</td>
+            <td class="left nameCell">${compel}</td>
+
+            <td class="tightCol sepL" title="${esc(tCode)}">${tsoftCode}</td>
+            <td class="left nameCell">${tsoft}</td>
+
+            <td class="tightCol sepL" title="${esc(aCode)}">${aideCode}</td>
+            <td class="left">${aide}</td>
+          </tr>`;
+        }).join('');
+
+        $('t2').innerHTML=colGrp(W2)+`<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`;
       }
 
-      const seq=idx===0;
-      const ean=(c==="EAN (Compel)"||c==="EAN (T-Soft)");
-      const eanBad=(c==="EAN (T-Soft)"&&r?._eanBad===true);
-      const stokBad=(c==="Stok (T-Soft)"&&r?._stokBad===true);
-      const bad=eanBad||stokBad;
+      const matched=(R||[]).filter(x=>x._m).length;
+      ui?.setChip?.('sum',`✓${matched} • ✕${(R||[]).length-matched}`,'muted');
+      const dl1=$('dl1');dl1&&(dl1.disabled=!(R||[]).length);
 
-      const cls=[
-        T1_SEP_LEFT.has(c)?'sepL':'',
-        seq?'seqCell':'',
-        ean?'eanCell':'',
-        bad?'flagBad':'',
-        NARROW_ONLY.has(c)?'tightCol':''
-      ].filter(Boolean).join(' ');
-
-      const title=(c==="Stok (Depo)"&&depotReady)?`${v} (Depo Toplam: ${r._draw??'0'})`:v;
-      return `<td class="${cls}" title="${esc(title)}"><span class="cellTxt">${esc(v)}</span></td>`
-    }).join('')}</tr>`).join('');
-
-    $('t1').innerHTML=colGrp(W1)+`<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
-
-    const sec=$('unmatchedSection'),ut=$('unmatchedTitle');
-    ut&&(ut.textContent='Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi');
-    const U=Array.isArray(Ux)?Ux:[];
-    if(!U.length){sec&&(sec.style.display='none')}
-    else{
-      sec&&(sec.style.display='');
-
-      const UCOLS=[
-        "Sıra",
-        "Marka",
-        "Compel Ürün Kodu",
-        "Compel Ürün Adı",
-        "T-Soft Ürün Kodu",
-        "T-Soft Ürün Adı",
-        "Aide Ürün Kodu",
-        "Aide Ürün Adı"
-      ];
-
-      // (yüzdeler sadece ipucu; auto layout + scaleX asıl işi yapıyor)
-      const W2=[1,1,1,22,1,22,1,22];
-
-      const head2=UCOLS.map(c=>{
-        // ✅ Separator: Marka|Compel Kodu arası + T-Soft ve Aide blokları
-        const sep=(c==="Compel Ürün Kodu"||c==="T-Soft Ürün Kodu"||c==="Aide Ürün Kodu")?' sepL':'';
-        const tightCol=(c==="Sıra"||c==="Marka"||c==="Compel Ürün Kodu"||c==="T-Soft Ürün Kodu"||c==="Aide Ürün Kodu")?' tightCol':'';
-        return `<th class="${(sep+tightCol).trim()}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
-      }).join('');
-
-      const body2=U.map((r,i)=>{
-        const seq=r["Sıra"]??String(i+1),brand=r["Marka"]??'';
-
-        const cCode=(r["Compel Ürün Kodu"]??r["Ürün Kodu (Compel)"]??'').toString().trim();
-        const cNm=r["Compel Ürün Adı"]??'',cLn=r._clink||'',cPulse=!!r._pulseC;
-
-        const tCode=(r["T-Soft Ürün Kodu"]??'').toString().trim();
-        const tNm=r["T-Soft Ürün Adı"]??'',tLn=r._seo||'';
-
-        const aCode=(r["Aide Ürün Kodu"]??'').toString().trim();
-        const aNm=r["Aide Ürün Adı"]??r["Depo Ürün Adı"]??'',aPulse=!!r._pulseD;
-
-        const cNum=stockToNumber(r._cstokraw??'',{source:'compel'});
-        const cTag=cNm?(cNum<=0?'(Stok Yok)':'(Stok Var)'):'';
-
-        const tAct=r._taktif,tStock=Number(r._tstok??0);
-        const tTag=tNm?(tAct===true?`(Aktif: ${fmtNum(tStock)} Stok)`:(tAct===false?'(Pasif)':'')):'';
-
-        const aNum=Number(r._dstok??0);
-        const aTag=aNm?(aNum<=0?'(Stok Yok)':`(Stok: ${fmtNum(aNum)})`):'';
-
-        const compelCode=cCode?`<span class="cellTxt" title="${esc(cCode)}">${esc(cCode)}</span>`:`<span class="cellTxt">—</span>`;
-        const tsoftCode=tCode?`<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>`:`<span class="cellTxt">—</span>`;
-        const aideCode=aCode?`<span class="cellTxt" title="${esc(aCode)}">${esc(aCode)}</span>`:`<span class="cellTxt">—</span>`;
-
-        const compel=cNm?`<div class="tagFlex"><span class="tagLeft">${cellName(cNm,cLn,cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>`:`<span class="cellTxt">—</span>`;
-        const tsoft=tNm?`<div class="tagFlex"><span class="tagLeft">${cellName(tNm,tLn,false)}</span><span class="tagRight">${esc(tTag)}</span></div>`:`<span class="cellTxt">—</span>`;
-        const aide=aNm?`<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse?' namePulse':''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>`:`<span class="cellTxt">—</span>`;
-
-        return `<tr id="u_${i}">
-          <td class="seqCell tightCol" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
-          <td class="tightCol" title="${esc(brand)}"><span class="cellTxt">${esc(brand)}</span></td>
-
-          <td class="tightCol sepL" title="${esc(cCode)}">${compelCode}</td>
-          <td class="left nameCell">${compel}</td>
-
-          <td class="tightCol sepL" title="${esc(tCode)}">${tsoftCode}</td>
-          <td class="left nameCell">${tsoft}</td>
-
-          <td class="tightCol sepL" title="${esc(aCode)}">${aideCode}</td>
-          <td class="left">${aide}</td>
-        </tr>`
-      }).join('');
-
-      $('t2').innerHTML=colGrp(W2)+`<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`
+      enforceSticky();
+      sched();
     }
-
-    const matched=(R||[]).filter(x=>x._m).length;
-    ui?.setChip?.('sum',`✓${matched} • ✕${(R||[]).length-matched}`,'muted');
-    const dl1=$('dl1');dl1&&(dl1.disabled=!(R||[]).length);
-    enforceSticky();sched()
-  }}
+  };
 }
