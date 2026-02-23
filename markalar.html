@@ -3,22 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Aide & T-Soft Marka Listeleri</title>
+  <title>Aide & T-Soft Marka Listesi + Tahmini Eşleştirme</title>
   <style>
     :root { color-scheme: dark; }
     body{
-      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background:#1e1e1e; color:#e6e6e6; padding:16px;
+      margin:0; padding:16px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background:#1e1e1e; color:#e6e6e6;
     }
-    h1{ margin:0 0 12px; font-size:20px; letter-spacing:.02em; }
+    h1{ margin:0 0 12px; font-size:18px; letter-spacing:.02em; }
     .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:stretch; }
     .card{
       background:#252525; border:1px solid #3a3a3a; border-radius:12px;
-      padding:12px; flex:1 1 520px; min-width:min(520px, 100%);
+      padding:12px; flex:1 1 520px; min-width:min(520px,100%);
     }
     label{ display:block; font-weight:900; margin-bottom:8px; }
     textarea{
-      width:100%; height:220px; resize:vertical; box-sizing:border-box;
+      width:100%; min-height:190px; resize:vertical; box-sizing:border-box;
       background:#1e1e1e; color:#e6e6e6;
       border:1px solid #4a4a4a; border-radius:10px; padding:10px;
       font-weight:700;
@@ -30,131 +31,80 @@
       box-sizing:border-box;
       font-weight:800;
     }
-    .small{ font-size:12px; opacity:.85; }
-    .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-    .chip{
-      border:1px solid #4a4a4a; border-radius:999px; padding:4px 10px;
-      background:#1e1e1e; font-weight:900;
-    }
-    .chip.ok{ color:#86efac; }
-    .chip.warn{ color:#fcd34d; }
-    .chip.bad{ color:#ff4d79; }
     button{
       background:#2d2d2d; color:#e6e6e6;
       border:1px solid #4a4a4a; border-radius:10px;
       font-weight:900; height:38px; padding:0 14px; cursor:pointer;
     }
     button:hover{ background:#343434; }
-    .lists{ display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
-    .list{
-      flex:1 1 520px; min-width:min(520px, 100%);
-      border:1px solid #3a3a3a; border-radius:12px;
-      background:#252525; overflow:hidden;
-    }
-    .listHead{
-      padding:10px 12px; background:#1b1b1b; border-bottom:1px solid #3a3a3a;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      position:sticky; top:0;
-    }
-    .listHead b{ font-size:14px; letter-spacing:.04em; }
-    .listBody{ max-height:55vh; overflow:auto; }
-    .item{
-      padding:10px 12px; border-bottom:1px solid #3a3a3a;
-      display:flex; justify-content:space-between; gap:10px;
-    }
-    .item:last-child{ border-bottom:0; }
-    .muted{ opacity:.75; font-weight:800; }
-    .err{ color:#ff4d79; font-weight:900; }
-    .oktxt{ color:#86efac; font-weight:900; }
-    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    @media (max-width:900px){ .grid2{ grid-template-columns:1fr; } }
+    .muted{ opacity:.8; font-weight:800; }
+    .small{ font-size:12px; opacity:.85; }
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width:980px){ .grid2{ grid-template-columns:1fr; } }
+    .status{ margin-top:10px; font-weight:900; }
+    .ok{ color:#86efac; }
+    .bad{ color:#ff4d79; }
+    .warn{ color:#fcd34d; }
   </style>
 </head>
 <body>
-  <h1>Aide ve T-Soft → Ayrı Ayrı Marka Listeleri</h1>
+  <h1>Aide + T-Soft → Marka Çıkar / Tahmini Eşleştir / TSV Kopyala</h1>
 
   <div class="row">
     <div class="card">
       <label for="aidePaste">Aide verisini yapıştır</label>
       <textarea id="aidePaste" placeholder="Aide stok tablosunu kopyala-yapıştır (TSV/CSV/karma)..."></textarea>
-
       <div style="height:10px"></div>
-      <div class="grid2">
-        <div>
-          <div class="small muted">Aide: “Marka” sütunu seçimi</div>
-          <select id="aideBrandSelect" disabled></select>
-        </div>
-        <div>
-          <div class="small muted">Aide: Satır / Benzersiz marka</div>
-          <div class="chips">
-            <span class="chip" id="aideRowCount">Satır: 0</span>
-            <span class="chip ok" id="aideUniqCount">Marka: 0</span>
-          </div>
-        </div>
-      </div>
+      <div class="small muted">Aide: Marka sütunu (bulunamazsa buradan seç)</div>
+      <select id="aideBrandSelect" disabled></select>
     </div>
 
     <div class="card">
       <label for="tsoftFile">T-Soft CSV yükle</label>
       <input id="tsoftFile" type="file" accept=".csv,text/csv,.txt,text/plain" />
-
       <div style="height:10px"></div>
-      <div class="grid2">
-        <div>
-          <div class="small muted">T-Soft: “Marka” sütunu seçimi</div>
-          <select id="tsoftBrandSelect" disabled></select>
-        </div>
-        <div>
-          <div class="small muted">T-Soft: Satır / Benzersiz marka</div>
-          <div class="chips">
-            <span class="chip" id="tsoftRowCount">Satır: 0</span>
-            <span class="chip ok" id="tsoftUniqCount">Marka: 0</span>
-          </div>
-        </div>
-      </div>
+      <div class="small muted">T-Soft: Marka sütunu (bulunamazsa buradan seç)</div>
+      <select id="tsoftBrandSelect" disabled></select>
 
       <div style="height:12px"></div>
       <div class="row" style="gap:10px">
-        <button id="btnBuild">Listeleri Oluştur</button>
+        <button id="btnBuild">Tara + Listeleri Üret</button>
+        <button id="btnCopy">TSV Kopyala</button>
         <button id="btnClear">Temizle</button>
       </div>
 
-      <div id="status" style="margin-top:10px"></div>
-      <div class="small muted" style="margin-top:10px">
-        Not: Otomatik “Marka” bulunamazsa dropdown’dan doğru sütunu seç ve tekrar “Listeleri Oluştur” de.
+      <div id="status" class="status"></div>
+      <div class="small muted" style="margin-top:8px">
+        Çıktı TSV’dir: Excel/Sheets’e direkt yapıştırabilirsin.
       </div>
     </div>
   </div>
 
-  <div class="lists">
-    <div class="list">
-      <div class="listHead">
-        <b>AIDE MARKALARI</b>
-        <span class="muted" id="aideListCount">0</span>
-      </div>
-      <div class="listBody" id="aideList"></div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card">
+      <label for="aideBrandsOut">Aide Marka Listesi (tekilleştirilmiş)</label>
+      <textarea id="aideBrandsOut" readonly placeholder="Aide markaları burada..."></textarea>
     </div>
+    <div class="card">
+      <label for="tsoftBrandsOut">T-Soft Marka Listesi (tekilleştirilmiş)</label>
+      <textarea id="tsoftBrandsOut" readonly placeholder="T-Soft markaları burada..."></textarea>
+    </div>
+  </div>
 
-    <div class="list">
-      <div class="listHead">
-        <b>T-SOFT MARKALARI</b>
-        <span class="muted" id="tsoftListCount">0</span>
-      </div>
-      <div class="listBody" id="tsoftList"></div>
+  <div class="card" style="margin-top:12px">
+    <label for="mapOut">Tahmini Eşleştirme TSV (Aide → T-Soft)</label>
+    <textarea id="mapOut" readonly placeholder="Aide Marka<TAB>Tahmini T-Soft Marka ..."></textarea>
+    <div class="small muted" style="margin-top:8px">
+      Not: Eşleşme eşiği tutmazsa T-Soft tarafı boş kalır. (Sen sonra alias ile düzelteceksin.)
     </div>
   </div>
 
 <script>
-  // ===== helpers (senin utils mantığına yakın) =====
+  // ========= utils (senin parseDelimited/pickColumn mantığı) =========
   const TR = "tr-TR";
   const $ = id => document.getElementById(id);
   const T = s => (s ?? "").toString().trim();
-  const esc = s => (s ?? "").toString()
-    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
-
   const cleanCell = s => (s ?? "").toString().replace(/\u00A0/g," ").trim().replace(/\s+/g," ");
-
   const normHeader = h => (h ?? "").toString().trim().toLocaleUpperCase(TR).replace(/\s+/g," ");
 
   function detectDelimiter(h){
@@ -229,30 +179,106 @@
       sel.appendChild(opt);
     }
 
-    if(autoKey && headers.includes(autoKey)){
-      sel.value = autoKey;
-    }else{
-      // "Marka"ya benzeyenleri en üste çekmek yerine basic bıraktım
-      sel.value = autoKey || "";
-    }
+    if(autoKey && headers.includes(autoKey)) sel.value = autoKey;
+    else sel.value = "";
 
     sel.disabled = headers.length === 0;
   }
 
-  function setStatus(msg, kind){
+  function setStatus(msg, kind="ok"){
     const el = $("status");
-    if(!msg){ el.innerHTML = ""; return; }
-    const cls = kind === "bad" ? "err" : "oktxt";
-    el.innerHTML = `<span class="${cls}">${esc(msg)}</span>`;
+    el.textContent = msg || "";
+    el.className = "status " + (kind==="bad" ? "bad" : kind==="warn" ? "warn" : "ok");
   }
 
-  // ===== state =====
+  // ========= brand normalize + similarity (tahmini eşleştirme) =========
+  // Daha agresif normalize: diakritik temizliği + TR karakter dönüşümü + alfanümerik/boşluk
+  function brandKey(raw){
+    let x = cleanCell(raw);
+    if(!x) return "";
+    try{
+      x = x.normalize("NFKD").replace(/[\u0300-\u036f]/g,"");
+    }catch{}
+    x = x.toLocaleUpperCase(TR)
+      .replace(/\u0130/g,"I").replace(/\u0131/g,"I")
+      .replace(/Ğ/g,"G").replace(/Ü/g,"U").replace(/Ş/g,"S").replace(/Ö/g,"O").replace(/Ç/g,"C")
+      .replace(/&/g," ")
+      .replace(/[^A-Z0-9]+/g," ")
+      .trim().replace(/\s+/g," ");
+    return x;
+  }
+
+  // Token Jaccard + edit benzeri skor (basit ama iş görüyor)
+  function jaccardTokens(a, b){
+    const A = new Set(a.split(" ").filter(Boolean));
+    const B = new Set(b.split(" ").filter(Boolean));
+    if(!A.size && !B.size) return 1;
+    if(!A.size || !B.size) return 0;
+    let inter = 0;
+    for(const t of A) if(B.has(t)) inter++;
+    const uni = A.size + B.size - inter;
+    return uni ? (inter / uni) : 0;
+  }
+
+  function levenshtein(a, b){
+    a = a || ""; b = b || "";
+    const n = a.length, m = b.length;
+    if(n===0) return m;
+    if(m===0) return n;
+    const dp = new Array(m+1);
+    for(let j=0;j<=m;j++) dp[j]=j;
+    for(let i=1;i<=n;i++){
+      let prev = dp[0];
+      dp[0] = i;
+      for(let j=1;j<=m;j++){
+        const tmp = dp[j];
+        const cost = a[i-1]===b[j-1] ? 0 : 1;
+        dp[j] = Math.min(
+          dp[j] + 1,      // del
+          dp[j-1] + 1,    // ins
+          prev + cost     // sub
+        );
+        prev = tmp;
+      }
+    }
+    return dp[m];
+  }
+
+  function simScore(aKey, bKey){
+    if(!aKey || !bKey) return 0;
+    if(aKey === bKey) return 1;
+
+    const jac = jaccardTokens(aKey, bKey);
+
+    const maxLen = Math.max(aKey.length, bKey.length) || 1;
+    const lev = levenshtein(aKey, bKey);
+    const ed = 1 - (lev / maxLen); // 0..1
+
+    // karma skor
+    return 0.62 * ed + 0.38 * jac;
+  }
+
+  // ========= state =========
   let aide = { rows: [], hdr: [], brandKey: "" };
   let tsoft = { rows: [], hdr: [], brandKey: "" };
 
-  function updateMeta(){
-    $("aideRowCount").textContent = `Satır: ${aide.rows.length}`;
-    $("tsoftRowCount").textContent = `Satır: ${tsoft.rows.length}`;
+  function uniqueListFrom(rows, brandCol){
+    const seen = new Set();
+    const out = [];
+    if(!rows?.length || !brandCol) return out;
+    for(const r of rows){
+      const v = cleanCell(r?.[brandCol] ?? "");
+      if(!v) continue;
+      // kendi içinde tekilleştirme: TR upper + tek boşluk
+      const n = v.toLocaleUpperCase(TR).replace(/\s+/g," ").trim();
+      if(!n) continue;
+      if(seen.has(n)) continue;
+      seen.add(n);
+      out.push(v);
+    }
+    // TR alfabetik
+    out.sort((a,b)=>a.toLocaleUpperCase(TR).localeCompare(b.toLocaleUpperCase(TR),"tr",{sensitivity:"base"}));
+    return out;
   }
 
   function readAide(){
@@ -260,148 +286,150 @@
     if(!raw.trim()){
       aide = { rows: [], hdr: [], brandKey: "" };
       fillSelect($("aideBrandSelect"), [], "");
-      updateMeta();
       return;
     }
-    try{
-      const p = parseDelimited(raw);
-      const rows = p.rows || [];
-      const hdr = p.hdr || [];
-      const sample = rows[0] || {};
-      const auto = sample ? pickColumn(sample, ["Marka","MARKA","Brand","BRAND"]) : "";
-      aide = { rows, hdr, brandKey: auto || "" };
-      fillSelect($("aideBrandSelect"), hdr, aide.brandKey);
-    }catch(e){
-      aide = { rows: [], hdr: [], brandKey: "" };
-      fillSelect($("aideBrandSelect"), [], "");
-      setStatus("Aide verisi okunamadı.", "bad");
-    }
-    updateMeta();
+    const p = parseDelimited(raw);
+    const rows = p.rows || [];
+    const hdr = p.hdr || [];
+    const sample = rows[0] || {};
+    const auto = sample ? pickColumn(sample, ["Marka","MARKA","Brand","BRAND"]) : "";
+    aide = { rows, hdr, brandKey: auto || "" };
+    fillSelect($("aideBrandSelect"), hdr, aide.brandKey);
   }
 
   async function readTsoftFile(file){
     if(!file){
       tsoft = { rows: [], hdr: [], brandKey: "" };
       fillSelect($("tsoftBrandSelect"), [], "");
-      updateMeta();
       return;
     }
-    try{
-      const txt = await file.text();
-      const p = parseDelimited(txt);
-      const rows = p.rows || [];
-      const hdr = p.hdr || [];
-      const sample = rows[0] || {};
-      const auto = sample ? pickColumn(sample, ["Marka","MARKA","Brand","BRAND"]) : "";
-      tsoft = { rows, hdr, brandKey: auto || "" };
-      fillSelect($("tsoftBrandSelect"), hdr, tsoft.brandKey);
-    }catch(e){
-      tsoft = { rows: [], hdr: [], brandKey: "" };
-      fillSelect($("tsoftBrandSelect"), [], "");
-      setStatus("T-Soft dosyası okunamadı.", "bad");
-    }
-    updateMeta();
+    const txt = await file.text();
+    const p = parseDelimited(txt);
+    const rows = p.rows || [];
+    const hdr = p.hdr || [];
+    const sample = rows[0] || {};
+    const auto = sample ? pickColumn(sample, ["Marka","MARKA","Brand","BRAND"]) : "";
+    tsoft = { rows, hdr, brandKey: auto || "" };
+    fillSelect($("tsoftBrandSelect"), hdr, tsoft.brandKey);
   }
 
-  function uniqueBrands(rows, brandKey){
-    const seen = new Set();      // normalized (kendi içinde tekilleştirme)
-    const out = [];             // display
-    if(!rows?.length || !brandKey) return out;
-
-    for(const r of rows){
-      const raw = cleanCell(r?.[brandKey] ?? "");
-      if(!raw) continue;
-
-      // kendi içinde tekilleştirme için normalize: TR upper + tek boşluk
-      const norm = raw.toLocaleUpperCase(TR).replace(/\s+/g," ").trim();
-      if(!norm) continue;
-
-      if(seen.has(norm)) continue;
-      seen.add(norm);
-      out.push(raw); // display olarak ham (temizlenmiş) değer
-    }
-
-    // alfabetik TR
-    out.sort((a,b) =>
-      a.toLocaleUpperCase(TR).localeCompare(b.toLocaleUpperCase(TR), "tr", { sensitivity:"base" })
-    );
-    return out;
-  }
-
-  function renderList(containerId, countId, uniqCountChipId, brands){
-    $(countId).textContent = String(brands.length);
-    $(uniqCountChipId).textContent = `Marka: ${brands.length}`;
-
-    const box = $(containerId);
-    if(!brands.length){
-      box.innerHTML = `<div class="item"><span class="muted">Liste boş.</span></div>`;
-      return;
-    }
-    box.innerHTML = brands.map((b,i)=>`
-      <div class="item">
-        <span><b>${i+1}.</b> ${esc(b)}</span>
-        <span class="muted small">${esc(b.toLocaleUpperCase(TR))}</span>
-      </div>
-    `).join("");
-  }
-
-  function build(){
+  function buildEverything(){
     setStatus("", "ok");
 
-    // kullanıcı dropdown'dan manuel seçtiyse onu kullan
-    const aideSel = $("aideBrandSelect").value || aide.brandKey;
-    const tsoftSel = $("tsoftBrandSelect").value || tsoft.brandKey;
+    // marka sütunu: dropdown seçimi varsa onu kullan
+    const aideCol = $("aideBrandSelect").value || aide.brandKey;
+    const tsoftCol = $("tsoftBrandSelect").value || tsoft.brandKey;
 
-    const aBrands = uniqueBrands(aide.rows, aideSel);
-    const tBrands = uniqueBrands(tsoft.rows, tsoftSel);
+    const aideBrands = uniqueListFrom(aide.rows, aideCol);
+    const tsoftBrands = uniqueListFrom(tsoft.rows, tsoftCol);
 
-    renderList("aideList", "aideListCount", "aideUniqCount", aBrands);
-    renderList("tsoftList", "tsoftListCount", "tsoftUniqCount", tBrands);
+    $("aideBrandsOut").value = aideBrands.join("\n");
+    $("tsoftBrandsOut").value = tsoftBrands.join("\n");
 
-    const warns = [];
-    if(aide.rows.length && !aideSel) warns.push("Aide: Marka sütunu seçilmedi/bulunamadı.");
-    if(tsoft.rows.length && !tsoftSel) warns.push("T-Soft: Marka sütunu seçilmedi/bulunamadı.");
+    // --- Tahmini eşleştirme ---
+    // 1) Key map
+    const tsoftItems = tsoftBrands.map(name => ({ name, key: brandKey(name) })).filter(x => x.key);
+    const aideItems  = aideBrands.map(name  => ({ name, key: brandKey(name) })).filter(x => x.key);
 
-    if(!aide.rows.length && !tsoft.rows.length){
-      warns.push("Aide boş ve T-Soft seçilmedi.");
+    // 2) tüm skorları çıkar (aide -> en iyi tsoft)
+    const candidates = [];
+    for(let i=0;i<aideItems.length;i++){
+      const a = aideItems[i];
+      let bestJ = -1, bestS = 0;
+      for(let j=0;j<tsoftItems.length;j++){
+        const b = tsoftItems[j];
+        const s = simScore(a.key, b.key);
+        if(s > bestS){ bestS = s; bestJ = j; }
+      }
+      candidates.push({ i, bestJ, bestS });
     }
 
-    if(warns.length) setStatus(warns.join(" "), "bad");
-    else setStatus("Listeler oluşturuldu.", "ok");
+    // 3) greedy one-to-one: en yüksekten aşağı ata
+    candidates.sort((x,y)=>y.bestS - x.bestS);
+    const usedT = new Set();
+    const assigned = new Map(); // aide index -> tsoft index
+
+    const THRESH = 0.84; // eşiği istersen 0.80 yapabilirsin
+    for(const c of candidates){
+      if(c.bestJ < 0) continue;
+      if(c.bestS < THRESH) continue;
+      if(usedT.has(c.bestJ)) continue;
+      usedT.add(c.bestJ);
+      assigned.set(c.i, c.bestJ);
+    }
+
+    // 4) TSV üret (Aide satır sırasıyla)
+    const lines = [];
+    lines.push("Aide Marka\tTahmini T-Soft Marka\tSkor");
+    for(let i=0;i<aideItems.length;i++){
+      const a = aideItems[i];
+      const j = assigned.get(i);
+      if(j === undefined){
+        lines.push(`${a.name}\t\t`);
+      }else{
+        const b = tsoftItems[j];
+        const s = simScore(a.key, b.key);
+        lines.push(`${a.name}\t${b.name}\t${s.toFixed(3)}`);
+      }
+    }
+    $("mapOut").value = lines.join("\n");
+
+    // --- status ---
+    const warns = [];
+    if(aide.rows.length && !aideCol) warns.push("Aide: Marka sütunu seçilmedi/bulunamadı.");
+    if(tsoft.rows.length && !tsoftCol) warns.push("T-Soft: Marka sütunu seçilmedi/bulunamadı.");
+    if(!aideBrands.length && !tsoftBrands.length) warns.push("İki tarafta da marka çıkmadı (veri yok veya sütun seçimi yanlış).");
+
+    if(warns.length) setStatus(warns.join(" "), "warn");
+    else setStatus(`Tamam: Aide ${aideBrands.length} marka, T-Soft ${tsoftBrands.length} marka. TSV hazır.`, "ok");
+  }
+
+  async function copyTSV(){
+    const txt = $("mapOut").value || "";
+    if(!txt.trim()){ setStatus("Kopyalanacak TSV yok.", "bad"); return; }
+    try{
+      await navigator.clipboard.writeText(txt);
+      setStatus("TSV kopyalandı ✅", "ok");
+    }catch{
+      // fallback
+      $("mapOut").focus();
+      $("mapOut").select();
+      setStatus("Clipboard izin vermedi. TSV alanını seçip Ctrl+C yap.", "warn");
+    }
   }
 
   function clearAll(){
     $("aidePaste").value = "";
     $("tsoftFile").value = "";
+    $("aideBrandsOut").value = "";
+    $("tsoftBrandsOut").value = "";
+    $("mapOut").value = "";
     aide = { rows: [], hdr: [], brandKey: "" };
     tsoft = { rows: [], hdr: [], brandKey: "" };
     fillSelect($("aideBrandSelect"), [], "");
     fillSelect($("tsoftBrandSelect"), [], "");
-    updateMeta();
-
-    $("aideList").innerHTML = `<div class="item"><span class="muted">Temizlendi.</span></div>`;
-    $("tsoftList").innerHTML = `<div class="item"><span class="muted">Temizlendi.</span></div>`;
-    $("aideListCount").textContent = "0";
-    $("tsoftListCount").textContent = "0";
-    $("aideUniqCount").textContent = "Marka: 0";
-    $("tsoftUniqCount").textContent = "Marka: 0";
     setStatus("", "ok");
   }
 
   // events
-  $("aidePaste").addEventListener("input", () => readAide());
-  $("tsoftFile").addEventListener("change", async (e) => {
-    await readTsoftFile(e.target.files?.[0]);
+  $("aidePaste").addEventListener("input", () => {
+    try{ readAide(); }catch(e){ setStatus("Aide verisi okunamadı.", "bad"); }
   });
 
-  $("aideBrandSelect").addEventListener("change", () => build());
-  $("tsoftBrandSelect").addEventListener("change", () => build());
+  $("tsoftFile").addEventListener("change", async (e) => {
+    try{ await readTsoftFile(e.target.files?.[0]); }
+    catch(e){ setStatus("T-Soft dosyası okunamadı.", "bad"); }
+  });
+
+  $("aideBrandSelect").addEventListener("change", buildEverything);
+  $("tsoftBrandSelect").addEventListener("change", buildEverything);
 
   $("btnBuild").addEventListener("click", () => {
-    readAide();
-    build();
+    try{ readAide(); }catch{}
+    buildEverything();
   });
 
+  $("btnCopy").addEventListener("click", copyTSV);
   $("btnClear").addEventListener("click", clearAll);
 
   // init
