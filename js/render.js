@@ -1,189 +1,289 @@
-// js/render.js
-import { esc } from './utils.js';
+// render.js (TAMAMI - DÜZELTİLMİŞ)
+
+import { esc,stockToNumber } from './utils.js';
 import { COLS } from './match.js';
+const $=id=>document.getElementById(id);
+const colGrp=w=>`<colgroup>${w.map(x=>`<col style="width:${x}%">`).join('')}</colgroup>`;
 
-const $ = id => document.getElementById(id);
-
-const colGrp = w => `<colgroup>${w.map(x => `<col style="width:${x}%">`).join('')}</colgroup>`;
-
-// ✅ 1. tablo başlık metinleri (görünen label’lar)
-const HDR1 = {
-  "Sıra No": "Sıra",
-  "Marka": "Marka",
-  "Ürün Adı (Compel)": "Compel Ürün Adı",
-  "Ürün Adı (T-Soft)": "Tsoft Ürün Adı",
-  "Ürün Kodu (Compel)": "Compel Ürün Kodu",
-  "Ürün Kodu (T-Soft)": "T-Soft Ürün Kodu",
-  "Stok (Compel)": "Compel",
-  "Stok (Depo)": "Depo",
-  "Stok (T-Soft)": "T-Soft",
-  "Stok Durumu": "Stok Durumu",
-  "EAN (Compel)": "Compel EAN",
-  "EAN (T-Soft)": "T-Soft EAN",
-  "EAN Durumu": "EAN Durumu"
+const HDR1={
+  "Sıra No":"Sıra","Marka":"Marka",
+  "Ürün Kodu (Compel)":"Compel Ürün Kodu","Ürün Adı (Compel)":"Compel Ürün Adı",
+  "Ürün Kodu (T-Soft)":"T-Soft Ürün Kodu","Ürün Adı (T-Soft)":"Tsoft Ürün Adı",
+  "Stok (Compel)":"Compel","Stok (Depo)":"Aide","Stok (T-Soft)":"T-Soft",
+  "EAN (Compel)":"Compel EAN","EAN (T-Soft)":"T-Soft EAN"
 };
+const disp=c=>HDR1[c]||c;
+const fmtHdr=s=>{s=(s??'').toString();const m=s.match(/^(.*?)(\s*\([^)]*\))\s*$/);return m?`<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`:esc(s)};
 
-const disp = c => HDR1[c] || c;
-
-const fmtHdr = s => {
-  s = (s ?? '').toString();
-  const m = s.match(/^(.*?)(\s*\([^)]*\))\s*$/);
-  if (!m) return esc(s);
-  return `<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`;
-};
-
-const cellName = (txt, href) => {
-  const v = (txt ?? '').toString();
-  const u = href || '';
-  return u
-    ? `<a class="nm" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
-    : `<span class="nm" title="${esc(v)}">${esc(v)}</span>`;
-};
-
-let _raf = 0, _bound = false;
-const sched = () => { if (_raf) cancelAnimationFrame(_raf); _raf = requestAnimationFrame(adjustLayout); };
-const firstEl = td => td?.querySelector('.cellTxt,.nm,input,button,select,div') || null;
-
-function fitHeaderText(tableId) {
-  const t = $(tableId); if (!t) return;
-  const ths = t.querySelectorAll('thead th');
-  for (const th of ths) {
-    const sp = th.querySelector('.hTxt'); if (!sp) continue;
-    sp.style.transform = 'scaleX(1)';
-    const avail = Math.max(10, th.clientWidth - 2);
-    const need = sp.scrollWidth || 0;
-    const s = need > avail ? (avail / need) : 1;
-    sp.style.transform = `scaleX(${s})`;
-  }
+let _css=false;
+function css(){
+  if(_css)return;_css=true;
+  const st=document.createElement('style');
+  st.textContent=`
+@keyframes namePulse{0%{text-shadow:0 0 0 rgba(134,239,172,0)}55%{text-shadow:0 0 14px rgba(134,239,172,.75)}100%{text-shadow:0 0 0 rgba(134,239,172,0)}}
+.namePulse{animation:namePulse 1000ms ease-in-out infinite;will-change:text-shadow}
+.tagFlex{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.tagLeft{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tagRight{flex:0 0 auto;text-align:right;white-space:nowrap;opacity:.92;font-weight:1100}
+.tagLeft .nm,.tagLeft .cellTxt{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sepL{border-left:1px solid rgba(232,60,97,.28)!important;box-shadow:inset 1px 0 0 rgba(0,0,0,.35)}
+#listTitle,#unmatchedTitle{font-weight:1300!important;font-size:20px!important;letter-spacing:.02em}
+#t1 thead th .hTxt,#t2 thead th .hTxt{display:inline-block;transform-origin:left center}
+th.hdrThin{font-weight:700!important}
+th.hdrTight .hTxt{letter-spacing:-.02em;font-size:12px}
+#t1 thead th,#t2 thead th{position:sticky!important;top:var(--theadTop,0px)!important;z-index:120!important;background:#1b1b1b!important;box-shadow:0 1px 0 rgba(31,36,48,.9)}
+.warnHalo{
+  text-shadow:
+    -0.8px 0 #000,
+     0.8px 0 #000,
+     0 -0.8px #000,
+     0  0.8px #000,
+     0 0 2px var(--warn-halo-2, rgba(245,245,245,.20)),
+     0 0 10px var(--warn-halo-1, rgba(245,245,245,.38));
 }
+th.tightCol,td.tightCol{padding-left:4px!important;padding-right:4px!important}
+td.eanCell{white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important}
+td.eanCell .cellTxt{white-space:nowrap!important}
 
-function adjustLayout() {
-  _raf = 0;
-  fitHeaderText('t1'); fitHeaderText('t2');
+/* ✅ ALT TABLO: belirli sütunlar içeriği kadar daralsın ve TAMAMI görünsün */
+#t2{table-layout:auto!important}
+#t2 th.fitCol,#t2 td.fitCol{
+  width:1%!important;             /* mümkün olduğunca dar */
+  white-space:nowrap!important;    /* alta indirme yok */
+  overflow:visible!important;      /* kesme yok */
+  text-overflow:clip!important;    /* ... yok */
+}
+#t2 th.fitCol .hTxt,#t2 td.fitCol .cellTxt{
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  max-width:none!important;
+}
+`;
+  document.head.appendChild(st)
+}
+css();
 
-  const applyNameFit = (tableId) => {
-    const t = $(tableId); if (!t) return;
-    const rows = t.querySelectorAll('tbody tr'), G = 6;
-    for (const tr of rows) {
-      const nameTds = tr.querySelectorAll('td.nameCell'); if (!nameTds.length) continue;
-      for (let i = nameTds.length - 1; i >= 0; i--) {
-        const td = nameTds[i], nm = td.querySelector('.nm'); if (!nm) continue;
-        const next = td.nextElementSibling;
-        const tdR = td.getBoundingClientRect(), nmR = nm.getBoundingClientRect();
-        let maxRight = tdR.right - G;
-        if (next) {
-          const el = firstEl(next);
-          if (el) { const r = el.getBoundingClientRect(); maxRight = Math.min(tdR.right + next.getBoundingClientRect().width, r.left - G); }
-          else maxRight = next.getBoundingClientRect().right - G;
+const cellName=(txt,href,pulse=false)=>{
+  const v=(txt??'').toString(),u=href||'',cls=`nm${pulse?' namePulse':''}`;
+  return u?`<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`:`<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`
+};
+
+let _raf=0,_bound=false;
+const sched=()=>{_raf&&cancelAnimationFrame(_raf);_raf=requestAnimationFrame(adjust)};
+const firstEl=td=>td?.querySelector('.cellTxt,.nm,input,button,select,div')||null;
+
+function enforceSticky(){
+  document.querySelectorAll('.tableWrap').forEach(w=>{w.style.overflow='visible';w.style.overflowX='visible';w.style.overflowY='visible'});
+  document.documentElement.style.setProperty('--theadTop','0px')
+}
+function fitHeader(tableId){
+  const t=$(tableId);if(!t)return;
+  t.querySelectorAll('thead th').forEach(th=>{
+    const sp=th.querySelector('.hTxt');if(!sp)return;
+    sp.style.transform='scaleX(1)';
+    const avail=Math.max(10,th.clientWidth-2),need=sp.scrollWidth||0,s=need>avail?(avail/need):1;
+    sp.style.transform=`scaleX(${s})`
+  })
+}
+function adjust(){
+  _raf=0;enforceSticky();fitHeader('t1');fitHeader('t2');
+  const nameFit=tableId=>{
+    const t=$(tableId);if(!t)return;
+    const rows=t.querySelectorAll('tbody tr'),G=6;
+    for(const tr of rows){
+      const tds=tr.querySelectorAll('td.nameCell');if(!tds.length)continue;
+      for(let i=tds.length-1;i>=0;i--){
+        const td=tds[i],nm=td.querySelector('.nm');if(!nm)continue;
+        const next=td.nextElementSibling,tdR=td.getBoundingClientRect(),nmR=nm.getBoundingClientRect();
+        let maxRight=tdR.right-G;
+        if(next){
+          const el=firstEl(next);
+          if(el){const r=el.getBoundingClientRect();maxRight=Math.min(tdR.right+next.getBoundingClientRect().width,r.left-G)}
+          else maxRight=next.getBoundingClientRect().right-G
         }
-        nm.style.maxWidth = Math.max(40, maxRight - nmR.left) + 'px';
+        nm.style.maxWidth=Math.max(40,maxRight-nmR.left)+'px'
       }
     }
   };
-
-  applyNameFit('t1');
-  applyNameFit('t2');
-
-  if (!_bound) { _bound = true; addEventListener('resize', sched); }
+  nameFit('t1');nameFit('t2');
+  if(!_bound){_bound=true;addEventListener('resize',sched)}
 }
 
-export function createRenderer({ ui } = {}) {
-  function render(R, Ux, depotReady) {
-    /* =========================
-       ✅ 1. Liste (t1)
-       ========================= */
-    const W1 = [4, 8, 14, 14, 7, 7, 6, 6, 6, 6, 8, 8, 6];
+const fmtNum=n=>{const x=Number(n);return Number.isFinite(x)?(Math.round(x)===x?String(x):String(x)):'0'};
 
-    const head = COLS.map(c => {
-      const l = disp(c);
-      return `<th title="${esc(l)}"><span class="hTxt">${fmtHdr(l)}</span></th>`;
+export function createRenderer({ui}={}){
+  return{render(R,Ux,depotReady){
+    const T1_SEP_LEFT=new Set(["Ürün Kodu (Compel)","Ürün Kodu (T-Soft)","Stok (Compel)","EAN (Compel)"]);
+    const tight=c=>(c==="Ürün Kodu (Compel)"||c==="Ürün Kodu (T-Soft)");
+    const NARROW_ONLY=new Set(["Sıra No","Marka","Ürün Kodu (Compel)","Ürün Kodu (T-Soft)"]);
+    const W1=[3,5,6,22,6,22,7,7,7,7,8];
+
+    const head=COLS.map(c=>{
+      const l=disp(c);
+      const cls=[
+        T1_SEP_LEFT.has(c)?'sepL':'',
+        tight(c)?'hdrThin hdrTight':'',
+        NARROW_ONLY.has(c)?'tightCol':''
+      ].filter(Boolean).join(' ');
+      return `<th class="${cls}" title="${esc(l)}"><span class="hTxt">${fmtHdr(l)}</span></th>`
     }).join('');
 
-    const body = (R || []).map(r => `<tr>${COLS.map((c, idx) => {
-      const v = r[c] ?? '';
-      if (c === "Ürün Adı (Compel)") return `<td class="left nameCell">${cellName(v, r._clink || '')}</td>`;
-      if (c === "Ürün Adı (T-Soft)") return `<td class="left nameCell">${cellName(v, r._seo || '')}</td>`;
+    // ✅ ÜST TABLO: önce Compel stok "Var" olanlar, sonra "Yok" olanlar; kendi içinde alfabetik
+    const normS=s=>String(s??'').trim();
+    const cmpTR=(a,b)=>normS(a).localeCompare(normS(b),'tr',{sensitivity:'base'});
+    const wCompel=r=>{
+      const n=stockToNumber(r?._s1raw??'',{source:'compel'});
+      return n>0?0:1
+    };
 
-      const seq = idx === 0, sd = c === "Stok Durumu", ed = c === "EAN Durumu";
-      const ean = c === "EAN (Compel)" || c === "EAN (T-Soft)";
+    const Rview=(R||[])
+      .filter(r=>!!r?._m)
+      .map((row,idx)=>({row,idx}))
+      .sort((A,B)=>{
+        const a=A.row,b=B.row;
 
-      const isBad = (sd && String(v || '') === 'Hatalı') || (ed && String(v || '') === 'Eşleşmedi');
-      const cls = [
-        seq ? 'seqCell' : '',
-        sd || ed ? 'statusBold' : '',
-        ean ? 'eanCell' : '',
-        isBad ? 'flagBad' : ''
+        const w=(wCompel(a)-wCompel(b));
+        if(w) return w;
+
+        const ab=cmpTR(a?.["Marka"],b?.["Marka"]); if(ab) return ab;
+        const an=cmpTR(a?.["Ürün Adı (Compel)"],b?.["Ürün Adı (Compel)"]); if(an) return an;
+        const ac=cmpTR(a?.["Ürün Kodu (Compel)"],b?.["Ürün Kodu (Compel)"]); if(ac) return ac;
+        const tn=cmpTR(a?.["Ürün Adı (T-Soft)"],b?.["Ürün Adı (T-Soft)"]); if(tn) return tn;
+
+        return A.idx-B.idx;
+      })
+      .map(x=>x.row);
+
+    const body=(Rview||[]).map((r,rowIdx)=>`<tr>${COLS.map((c,idx)=>{
+      let v=r[c]??'';
+      if(c==="Sıra No") v=String(rowIdx+1);
+
+      if(c==="Ürün Adı (Compel)")return `<td class="left nameCell">${cellName(v,r._clink||'')}</td>`;
+      if(c==="Ürün Adı (T-Soft)"){
+        const txt=(v??'').toString().trim();
+        return `<td class="left nameCell">${cellName(txt,r._seo||'')}</td>`;
+      }
+
+      const seq=idx===0;
+      const ean=(c==="EAN (Compel)"||c==="EAN (T-Soft)");
+      const eanBad=(c==="EAN (T-Soft)"&&r?._eanBad===true);
+      const stokBad=(c==="Stok (T-Soft)"&&r?._stokBad===true);
+      const bad=eanBad||stokBad;
+
+      const cls=[
+        T1_SEP_LEFT.has(c)?'sepL':'',
+        seq?'seqCell':'',
+        ean?'eanCell':'',
+        bad?'flagBad':'',
+        NARROW_ONLY.has(c)?'tightCol':''
       ].filter(Boolean).join(' ');
 
-      const title = (c === "Stok (Depo)" && depotReady)
-        ? `${v} (Depo Toplam: ${r._draw ?? '0'})`
-        : v;
-
-      return `<td class="${cls}" title="${esc(title)}"><span class="cellTxt">${esc(v)}</span></td>`;
+      const title=(c==="Stok (Depo)"&&depotReady)?`${v} (Depo Toplam: ${r._draw??'0'})`:v;
+      return `<td class="${cls}" title="${esc(title)}"><span class="cellTxt">${esc(v)}</span></td>`
     }).join('')}</tr>`).join('');
 
-    $('t1').innerHTML = colGrp(W1) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+    $('t1').innerHTML=colGrp(W1)+`<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
-    /* =========================
-       ✅ 2. Liste (t2 - Eşleşmeyenler)
-       - Artık app.js "zip" yaptığı için T-Soft aşağı kaymaz
-       - Burada sadece görsel splitter/padding ekliyoruz
-       ========================= */
-    const sec = $('unmatchedSection');
-    const ut = $('unmatchedTitle');
-    if (ut) ut.textContent = 'Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi';
+    const sec=$('unmatchedSection'),ut=$('unmatchedTitle');
+    ut&&(ut.textContent='Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi');
+    const U=Array.isArray(Ux)?Ux:[];
+    if(!U.length){sec&&(sec.style.display='none')}
+    else{
+      sec&&(sec.style.display='');
 
-    const U = Array.isArray(Ux) ? Ux : [];
+      const UCOLS=[
+        "Sıra",
+        "Marka",
+        "Compel Ürün Kodu",
+        "Compel Ürün Adı",
+        "T-Soft Ürün Kodu",
+        "T-Soft Ürün Adı",
+        "Aide Ürün Adı"
+      ];
 
-    if (!U.length) {
-      if (sec) sec.style.display = 'none';
-    } else {
-      if (sec) sec.style.display = '';
-      const UCOLS = ["Sıra", "Marka", "Compel Ürün Adı", "T-Soft Ürün Adı", "Depo Ürün Adı"];
-      const W2 = [6, 12, 26, 28, 28];
+      // ✅ Burada artık yüzde genişlik vermiyoruz; #t2 table-layout:auto ile içerik kadar daralacak.
+      // İsterseniz yine de bir colgroup kalsın diye sadece "fit" sütunlarına 1% veriyoruz:
+      const col2=`
+        <colgroup>
+          <col style="width:1%">
+          <col style="width:1%">
+          <col style="width:1%">
+          <col>
+          <col style="width:1%">
+          <col>
+          <col>
+        </colgroup>
+      `;
 
-      const head2 = UCOLS.map(c =>
-        `<th title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
-      ).join('');
+      const FIT=new Set(["Sıra","Marka","Compel Ürün Kodu","T-Soft Ürün Kodu"]);
 
-      const splitStyle = `border-left:1px solid #1f2430;padding-left:12px;`;
-
-      const body2 = U.map((r, i) => {
-        const seq = r["Sıra"] ?? String(i + 1);
-        const brand = r["Marka"] ?? '';
-
-        const cNm = r["Compel Ürün Adı"] ?? '';
-        const cLn = r._clink || '';
-
-        const tNm = r["T-Soft Ürün Adı"] ?? '';
-        const tLn = r._seo || '';
-
-        const dNm = r["Depo Ürün Adı"] ?? '';
-
-        const compelCell = cNm ? cellName(cNm, cLn) : `<span class="cellTxt">—</span>`;
-        const tsoftCell  = tNm ? cellName(tNm, tLn) : `<span class="cellTxt">—</span>`;
-        const depoCell   = dNm ? `<span class="cellTxt" title="${esc(dNm)}">${esc(dNm)}</span>` : `<span class="cellTxt">—</span>`;
-
-        return `<tr id="u_${i}">
-          <td class="seqCell" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
-          <td title="${esc(brand)}"><span class="cellTxt">${esc(brand)}</span></td>
-          <td class="left nameCell">${compelCell}</td>
-          <td class="left nameCell" style="${splitStyle}">${tsoftCell}</td>
-          <td class="left" style="${splitStyle}">${depoCell}</td>
-        </tr>`;
+      const head2=UCOLS.map(c=>{
+        const sep=(c==="Compel Ürün Kodu"||c==="T-Soft Ürün Kodu"||c==="Aide Ürün Adı")?' sepL':'';
+        const fit=FIT.has(c)?' fitCol':'';
+        return `<th class="${(sep+fit).trim()}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
       }).join('');
 
-      $('t2').innerHTML = colGrp(W2) + `<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`;
+      const body2=U.map((r,i)=>{
+        const seq=r["Sıra"]??String(i+1);
+        const brand=r["Marka"]??'';
+
+        const cCode=(r["Compel Ürün Kodu"]??'').toString().trim();
+        const cNm=r["Compel Ürün Adı"]??'';
+        const cLn=r._clink||'';
+        const cPulse=!!r._pulseC;
+
+        const tCode=(r["T-Soft Ürün Kodu"]??'').toString().trim();
+        const tNm=r["T-Soft Ürün Adı"]??'';
+        const tLn=r._seo||'';
+
+        const aNm=r["Aide Ürün Adı"]??r["Depo Ürün Adı"]??'';
+        const aPulse=!!r._pulseD;
+
+        const cNum=stockToNumber(r._cstokraw??'',{source:'compel'});
+        const cTag=cNm?(cNum<=0?'(Stok Yok)':'(Stok Var)'):'';
+
+        const tAct=r._taktif,tStock=Number(r._tstok??0);
+        const tTag=tNm?(tAct===true?`(Aktif: ${fmtNum(tStock)} Stok)`:(tAct===false?'(Pasif)':'')):'';
+
+        const aNum=Number(r._dstok??0);
+        const aTag=aNm?(aNum<=0?'(Stok Yok)':`(Stok: ${fmtNum(aNum)})`):'';
+
+        const compelNameCell=cNm
+          ? `<div class="tagFlex"><span class="tagLeft">${cellName(cNm,cLn,cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>`
+          : `<span class="cellTxt">—</span>`;
+
+        const tsoftNameCell=tNm
+          ? `<div class="tagFlex"><span class="tagLeft">${cellName(tNm,tLn,false)}</span><span class="tagRight">${esc(tTag)}</span></div>`
+          : `<span class="cellTxt">—</span>`;
+
+        const aideCell=aNm
+          ? `<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse?' namePulse':''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>`
+          : `<span class="cellTxt">—</span>`;
+
+        const compelCodeCell=cCode ? `<span class="cellTxt" title="${esc(cCode)}">${esc(cCode)}</span>` : `<span class="cellTxt">—</span>`;
+        const tsoftCodeCell=tCode ? `<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>` : `<span class="cellTxt">—</span>`;
+
+        return `<tr id="u_${i}">
+          <td class="seqCell fitCol" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
+          <td class="fitCol" title="${esc(brand)}"><span class="cellTxt">${esc(brand)}</span></td>
+
+          <td class="fitCol sepL" title="${esc(cCode)}">${compelCodeCell}</td>
+          <td class="left nameCell">${compelNameCell}</td>
+
+          <td class="fitCol sepL" title="${esc(tCode)}">${tsoftCodeCell}</td>
+          <td class="left nameCell">${tsoftNameCell}</td>
+
+          <td class="left sepL">${aideCell}</td>
+        </tr>`
+      }).join('');
+
+      $('t2').innerHTML=col2+`<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`
     }
 
-    const matched = (R || []).filter(x => x._m).length;
-    ui?.setChip?.('sum', `✓${matched} • ✕${(R || []).length - matched}`, 'muted');
-
-    const dl1 = $('dl1');
-    if (dl1) dl1.disabled = !(R || []).length;
-
-    sched();
-  }
-
-  return { render };
+    const matched=(R||[]).filter(x=>x._m).length;
+    ui?.setChip?.('sum',`✓${matched} • ✕${(R||[]).length-matched}`,'muted');
+    const dl1=$('dl1');dl1&&(dl1.disabled=!(R||[]).length);
+    enforceSticky();sched()
+  }}
 }
