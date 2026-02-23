@@ -3,10 +3,10 @@ const $=id=>document.getElementById(id);
 
 export const COLS=[
   "Sıra No","Marka",
-  "Ürün Kodu (Compel)","Ürün Adı (Compel)",
-  "Ürün Kodu (T-Soft)","Ürün Adı (T-Soft)",
-  "Stok (Compel)","Stok (Depo)","Stok (T-Soft)",
-  "EAN (Compel)","EAN (T-Soft)"
+  "Ürün Adı (Compel)","Ürün Adı (T-Soft)",
+  "Ürün Kodu (Compel)","Ürün Kodu (T-Soft)",
+  "Stok (Compel)","Stok (Depo)","Stok (T-Soft)","Stok Durumu",
+  "EAN (Compel)","EAN (T-Soft)","EAN Durumu"
 ];
 
 const bRaw=s=>{
@@ -30,7 +30,7 @@ const ALIAS=new Map([
   ['MARANTZPROFESSIONAL','MARANTZ'],
   ['RUPERTNEVEDESIGNS','RUPERT NEVE'],
 ]);
-const B=s=>{const k=bRaw(s);return k?(ALIAS.get(compact(k))||k):''};
+const B=s=>{const k=bRaw(s);return k? (ALIAS.get(compact(k))||k):''};
 const Bx=s=>bRaw(s);
 export const normBrand=B;
 
@@ -56,10 +56,12 @@ const eans=v=>{
   v=(v??'').toString().trim();if(!v)return [];
   return v.split(/[^0-9]+/g).map(D).filter(x=>x.length>=8)
 };
-const eanAlt1=x=>{
-  x=D(x||'');if(!x)return '';
-  if(x.startsWith('0')&&x.length>1)return x.slice(1);
-  return ''
+
+const eanAlt1 = (x)=>{
+  x = D(x||'');
+  if(!x) return '';
+  if(x.startsWith('0') && x.length>1) return x.slice(1);
+  return '';
 };
 
 export function createMatcher({getDepotAgg,isDepotReady}={}){
@@ -89,8 +91,16 @@ export function createMatcher({getDepotAgg,isDepotReady}={}){
     const br1=B(r1[C1.marka]||'');
     for(const e0 of eans(r1[C1.ean]||'')){
       let arr=idxB.get(e0);
-      if((!arr||!arr.length)&&e0.startsWith('0')){const e1=e0.slice(1);arr=idxB.get(e1)||arr}
-      if(arr?.length)return arr.find(r2=>B(r2[C2.marka]||'')===br1)||arr[0]
+
+      // ✅ tek leading zero varyantı
+      if((!arr || !arr.length) && e0.startsWith('0')){
+        const e1 = e0.slice(1);
+        arr = idxB.get(e1) || arr;
+      }
+
+      if(arr?.length){
+        return arr.find(r2=>B(r2[C2.marka]||'')===br1)||arr[0]
+      }
     }
     return null
   };
@@ -118,29 +128,33 @@ export function createMatcher({getDepotAgg,isDepotReady}={}){
   const tsoftLbl=(raw,ok)=>ok?(inStock(raw,{source:'products'})?'Stokta Var':'Stokta Yok'):'';
   const depoLbl=dNum=>!isDepotReady?.()?'—':(dNum>0?'Stokta Var':'Stokta Yok');
 
-  const stokDurFlag=(compelRaw,tsoftRaw,dNum,ok)=>{
-    if(!ok)return null;
+  const stokDur=(compelRaw,tsoftRaw,dNum,ok)=>{
+    if(!ok)return '—';
     const a=inStock(compelRaw,{source:'compel'}),b=inStock(tsoftRaw,{source:'products'});
     const exp=isDepotReady?.()?(a||(dNum>0)):a;
-    return b===exp?false:true
+    return b===exp?'Doğru':'Hatalı'
   };
 
-  // ✅ kural: Compel EAN yoksa T-Soft EAN kırmızı olmasın
-  // return: true(=eşleşti) / false(=eşleşmedi) / null(=compel ean yok -> işaretleme yok)
-  const eanMatch=(aRaw,bRaw2,ok)=>{
-    if(!ok)return null;
+  const eanDur=(aRaw,bRaw2,ok)=>{
+    if(!ok)return '—';
 
-    const aList=eans(aRaw||'');
-    if(!aList.length) return null; // Compel EAN yok -> uyarı yok
-
+    // ✅ Compel set: asıl + tek 0 kaldırılmış
     const a=new Set();
-    for(const x of aList){a.add(x);const alt=eanAlt1(x);alt&&a.add(alt)}
+    for(const x of eans(aRaw||'')){
+      a.add(x);
+      const alt = eanAlt1(x);
+      if(alt) a.add(alt);
+    }
 
     const b=eans(bRaw2||'');
-    if(!b.length) return false;
+    if(!a.size||!b.length)return 'Eşleşmedi';
 
-    for(const x of b){if(a.has(x)||a.has('0'+x))return true}
-    return false
+    for(const x of b){
+      if(a.has(x)) return 'Eşleşti';
+      // ✅ T-Soft 0'sızsa, Compel 0'lı olabilir
+      if(a.has('0'+x)) return 'Eşleşti';
+    }
+    return 'Eşleşmedi'
   };
 
   const outRow=(r1,r2,how)=>{
@@ -150,26 +164,17 @@ export function createMatcher({getDepotAgg,isDepotReady}={}){
     const depAgg=getDepotAgg?.();
     const d=(r2&&depAgg)?depAgg(sup):{num:0,raw:''};
 
-    const em=eanMatch(r1[C1.ean]||'',bark,!!r2);
-    const stokBad=stokDurFlag(s1raw,s2raw,d.num,!!r2);
-
     return{
       "Sıra No":T(r1[C1.siraNo]||''),"Marka":T(r1[C1.marka]||''),
-      "Ürün Adı (Compel)":T(r1[C1.urunAdi]||''),
-      "Ürün Adı (T-Soft)":r2?T(r2[C2.urunAdi]||''):'',
-      "Ürün Kodu (Compel)":T(r1[C1.urunKodu]||''),
-      "Ürün Kodu (T-Soft)":sup,
+      "Ürün Adı (Compel)":T(r1[C1.urunAdi]||''),"Ürün Adı (T-Soft)":r2?T(r2[C2.urunAdi]||''):'',
+      "Ürün Kodu (Compel)":T(r1[C1.urunKodu]||''),"Ürün Kodu (T-Soft)":sup,
       "Stok (Compel)":compelLbl(s1raw),
       "Stok (Depo)":r2?depoLbl(d.num):(isDepotReady?.()?'Stokta Yok':'—'),
       "Stok (T-Soft)":tsoftLbl(s2raw,!!r2),
-      "EAN (Compel)":T(r1[C1.ean]||''),"EAN (T-Soft)":bark,
-
+      "Stok Durumu":stokDur(s1raw,s2raw,d.num,!!r2),
+      "EAN (Compel)":T(r1[C1.ean]||''),"EAN (T-Soft)":bark,"EAN Durumu":eanDur(r1[C1.ean]||'',bark,!!r2),
       _s1raw:s1raw,_s2raw:s2raw,_dnum:d.num,_draw:d.raw,
-      _m:!!r2,_how:r2?how:'',_k:kNew(r1),_bn:B(r1[C1.marka]||''),_seo:seoAbs,_clink:clink,
-
-      _eanMatch:em,
-      _eanBad:(em===false),     // ✅ sadece em===false iken (compel ean varsa)
-      _stokBad:(stokBad===true)
+      _m:!!r2,_how:r2?how:'',_k:kNew(r1),_bn:B(r1[C1.marka]||''),_seo:seoAbs,_clink:clink
     }
   };
 
