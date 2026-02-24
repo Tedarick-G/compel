@@ -14,7 +14,9 @@ const disp = c => HDR1[c] || c;
 const fmtHdr = s => {
   s = (s ?? '').toString();
   const m = s.match(/^(.*?)(\s*\([^)]*\))\s*$/);
-  return m ? `<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>` : esc(s);
+  return m
+    ? `<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`
+    : esc(s);
 };
 
 let _css = false;
@@ -57,14 +59,14 @@ td.eanCell .cellTxt{white-space:nowrap!important}
 #t1 th,#t1 td,#t2 th,#t2 td,#t2L th,#t2L td,#t2R th,#t2R td{white-space:nowrap}
 #t1 td.nameCell,#t2 td.nameCell,#t2L td.nameCell,#t2R td.nameCell{min-width:0}
 
-/* ✅ Tüm Markalar: pasif T-Soft adı (renk aynı, ince gri çizgi) */
+/* ✅ Tüm Markalar: pasif T-Soft adı */
 .tsoftPassive{
   text-decoration-line:line-through;
   text-decoration-thickness:1px;
   text-decoration-color:rgba(160,160,160,.85);
 }
 
-/* ✅ Tüm Markalar: stok tutarsız satır soft pulse (1sn, sürekli) */
+/* ✅ Tüm Markalar: stok tutarsız satır soft pulse */
 @keyframes softStockPulse{
   0%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}
   55%{box-shadow:0 0 14px rgba(232,60,97,.26); background:rgba(232,60,97,.06)}
@@ -72,10 +74,8 @@ td.eanCell .cellTxt{white-space:nowrap!important}
 }
 tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
 
-/* ✅ Split tabloları “yarım görünme” (scaleX) sorununu önlemek için */
-.tableWrap.splitNoScale table{
-  transform:scaleX(1)!important;
-}
+/* ✅ Split unmatched başlıkları ortalı */
+.unmHead{font-weight:1300; text-align:center!important; letter-spacing:.01em;}
 `;
   document.head.appendChild(st);
 }
@@ -83,7 +83,9 @@ css();
 
 const cellName = (txt, href, pulse = false, extraCls = '') => {
   const v = (txt ?? '').toString(), u = href || '', cls = `nm${pulse ? ' namePulse' : ''}${extraCls ? ` ${extraCls}` : ''}`;
-  return u ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>` : `<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`;
+  return u
+    ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
+    : `<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`;
 };
 
 let _raf = 0, _bound = false;
@@ -109,14 +111,22 @@ function fitHeader(tableId) {
   });
 }
 
+/**
+ * ✅ Split listelerde (t2L/t2R) scaleX yapma -> “yarım yarım” görünmesin.
+ * Ana tabloda fit devam.
+ */
 function fitTableToWrap(tableId) {
   const t = $(tableId);
   if (!t) return;
   const wrap = t.closest('.tableWrap') || t.parentElement;
   if (!wrap) return;
 
-  // ✅ Split tabloları scale etmeyelim (yarım görünme fix)
-  if (wrap.classList.contains('splitNoScale')) return;
+  // split tablolar: scale kapalı, gerektiğinde ellipsis zaten var
+  if (tableId === 't2L' || tableId === 't2R') {
+    t.style.transform = 'scaleX(1)';
+    wrap.style.overflowX = 'hidden';
+    return;
+  }
 
   t.style.transform = 'scaleX(1)';
 
@@ -168,7 +178,8 @@ function adjust() {
 
 const fmtNum = n => { const x = Number(n); return Number.isFinite(x) ? (Math.round(x) === x ? String(x) : String(x)) : '0'; };
 
-const stockLabel = (n) => {
+// ✅ Tüm Markalar stok label
+const fmtStockLabel = n => {
   const x = Number(n);
   const v = Number.isFinite(x) ? x : 0;
   return (v > 0) ? `Stok Var (${fmtNum(v)})` : `Stok Yok (${fmtNum(v)})`;
@@ -176,9 +187,8 @@ const stockLabel = (n) => {
 
 export function createRenderer({ ui } = {}) {
   return {
-    // ✅ Eski (Compel modu) render aynen
+    // ✅ Compel modu aynı (dokunulmadı)
     render(R, Ux, depotReady) {
-      // Compel modu UI: split section kapat
       const splitSec = $('unmatchedSplitSection'); splitSec && (splitSec.style.display = 'none');
       const t2L = $('t2L'); t2L && (t2L.innerHTML = '');
       const t2R = $('t2R'); t2R && (t2R.innerHTML = '');
@@ -244,7 +254,6 @@ export function createRenderer({ ui } = {}) {
 
       $('t1').innerHTML = colGrp(W1) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
-      // Compel unmatched (eski davranış) — burada sen zaten app.js’de Ux boş bırakıyorsun.
       const sec = $('unmatchedSection'), ut = $('unmatchedTitle');
       ut && (ut.textContent = 'Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi');
       const U = Array.isArray(Ux) ? Ux : [];
@@ -253,11 +262,16 @@ export function createRenderer({ ui } = {}) {
         sec && (sec.style.display = '');
 
         const UCOLS = [
-          "Sıra", "Marka",
-          "Compel Ürün Kodu", "Compel Ürün Adı",
-          "T-Soft Ürün Kodu", "T-Soft Ürün Adı",
-          "Aide Ürün Kodu", "Aide Ürün Adı"
+          "Sıra",
+          "Marka",
+          "Compel Ürün Kodu",
+          "Compel Ürün Adı",
+          "T-Soft Ürün Kodu",
+          "T-Soft Ürün Adı",
+          "Aide Ürün Kodu",
+          "Aide Ürün Adı"
         ];
+
         const W2 = [4, 10, 10, 18, 10, 18, 10, 20];
 
         const head2 = UCOLS.map(c => {
@@ -314,23 +328,20 @@ export function createRenderer({ ui } = {}) {
 
       const matched = (R || []).filter(x => x._m).length;
       ui?.setChip?.('sum', `✓${matched} • ✕${(R || []).length - matched}`, 'muted');
-      const dl1 = $('dl1'); dl1 && (dl1.disabled = !((R || []).length));
+      const dl1 = $('dl1'); dl1 && (dl1.disabled = !(R || []).length);
       enforceSticky(); sched();
     },
 
-    // ✅ Yeni: Tüm Markalar modu render
+    // ✅ Tüm Markalar modu render
     renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}, opts = {}) {
       // Compel unmatched kapat
       const secOld = $('unmatchedSection'); secOld && (secOld.style.display = 'none');
       const t2 = $('t2'); t2 && (t2.innerHTML = '');
 
-      // ✅ Split tabloları scale etmeyelim
-      const wrapL = $('t2L')?.closest?.('.tableWrap');
-      const wrapR = $('t2R')?.closest?.('.tableWrap');
-      wrapL && wrapL.classList.add('splitNoScale');
-      wrapR && wrapR.classList.add('splitNoScale');
+      // ✅ üstteki ana tabloda eşleşmeyen satır görünmesin
+      const viewRows = (rows || []).filter(r => r?._m);
 
-      // Ana tablo (yalnız matched satırlar geliyor — app.js tarafında filtreleniyor)
+      // Ana tablo
       const COLS_ALL = [
         "Sıra", "Marka",
         "Ürün Kodu (T-Soft)", "Ürün Adı (T-Soft)",
@@ -338,7 +349,7 @@ export function createRenderer({ ui } = {}) {
         "Stok (T-Soft)", "Stok (Aide)"
       ];
 
-      // ✅ Seperatör: Ürün Adı (Aide) ile Stok (T-Soft) arasına da çizgi
+      // ✅ istenen: "Ürün Adı (Aide)" ile "Stok (T-Soft)" arasına da separator
       const SEP_LEFT = new Set(["Ürün Kodu (T-Soft)", "Ürün Kodu (Aide)", "Stok (T-Soft)"]);
 
       const tightCol = c => (
@@ -354,13 +365,9 @@ export function createRenderer({ ui } = {}) {
         return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
       }).join('');
 
-      const body = (rows || []).map((r, i) => {
+      const body = (viewRows || []).map((r, i) => {
         const trCls = [r?._pulse ? 'stockPulse' : ''].filter(Boolean).join(' ');
         const tNameCls = r?._tpassive ? 'tsoftPassive' : '';
-
-        const tStockLabel = stockLabel(r["Stok (T-Soft)"]);
-        const aStockLabel = stockLabel(r["Stok (Aide)"]);
-
         return `<tr class="${esc(trCls)}">
           <td class="seqCell tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
           <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
@@ -371,8 +378,8 @@ export function createRenderer({ ui } = {}) {
           <td class="tightCol sepL" title="${esc(r["Ürün Kodu (Aide)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (Aide)"] || '')}</span></td>
           <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı (Aide)"] || '')}">${esc(r["Ürün Adı (Aide)"] || '')}</span></td>
 
-          <td class="tightCol sepL" title="${esc(tStockLabel)}"><span class="cellTxt">${esc(tStockLabel)}</span></td>
-          <td class="tightCol" title="${esc(aStockLabel)}"><span class="cellTxt">${esc(aStockLabel)}</span></td>
+          <td class="tightCol sepL" title="${esc(fmtStockLabel(r["Stok (T-Soft)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (T-Soft)"]))}</span></td>
+          <td class="tightCol" title="${esc(fmtStockLabel(r["Stok (Aide)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (Aide)"]))}</span></td>
         </tr>`;
       }).join('');
 
@@ -390,13 +397,14 @@ export function createRenderer({ ui } = {}) {
         $('t2R') && ($('t2R').innerHTML = '');
       } else {
         splitSec && (splitSec.style.display = '');
-
         const colsU = ["Sıra", "Marka", "Ürün Kodu", "Ürün Adı", "Stok"];
         const WU = [8, 18, 18, 44, 12];
 
-        const mkTable = (id, arr, topTitle) => {
-          const headTitleRow = `<tr><th colspan="${colsU.length}" class="left" title="${esc(topTitle)}"><span class="hTxt">${esc(topTitle)}</span></th></tr>`;
-          const headU = colsU.map(c => {
+        const mkTable = (id, arr, label) => {
+          // ✅ üst başlık satırı (ortalanmış)
+          const topHead = `<tr><th class="unmHead" colspan="${colsU.length}" title="${esc(label)}">${esc(label)}</th></tr>`;
+
+          const headU = colsU.map((c) => {
             const cls = [
               (c === "Ürün Kodu") ? 'sepL' : '',
               (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'tightCol' : ''
@@ -404,32 +412,27 @@ export function createRenderer({ ui } = {}) {
             return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
           }).join('');
 
-          const bodyU = (arr || []).map((r, i) => {
-            const st = stockLabel(r["Stok"]);
-            return `<tr>
-              <td class="seqCell tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
-              <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
-              <td class="tightCol sepL" title="${esc(r["Ürün Kodu"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu"] || '')}</span></td>
-              <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
-              <td class="tightCol" title="${esc(st)}"><span class="cellTxt">${esc(st)}</span></td>
-            </tr>`;
-          }).join('');
+          const bodyU = (arr || []).map((r, i) => `<tr>
+            <td class="seqCell tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
+            <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
+            <td class="tightCol sepL" title="${esc(r["Ürün Kodu"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu"] || '')}</span></td>
+            <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
+            <td class="tightCol" title="${esc(fmtStockLabel(r["Stok"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok"]))}</span></td>
+          </tr>`).join('');
 
           $(id).innerHTML =
             colGrp(WU) +
-            `<thead>${headTitleRow}<tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
+            `<thead>${topHead}<tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
         };
 
         mkTable('t2L', unmatchedTsoft, "T-Soft'ta Aide ile Eşleşmeyen Ürünler");
         mkTable('t2R', unmatchedAide, "Aide'de T-Soft ile Eşleşmeyen Ürünler");
       }
 
-      // chips
-      const matchedCount = (rows || []).length;
-      const total = matchedCount + (unmatchedTsoft?.length || 0) + (unmatchedAide?.length || 0);
-      ui?.setChip?.('sum', `✓${matchedCount} • ✕${Math.max(0, total - matchedCount)}`, 'muted');
+      // chips (üstte sadece matched gösterdiğimiz için total=matched)
+      const total = (viewRows || []).length;
+      ui?.setChip?.('sum', `✓${total} • ✕0`, 'muted');
 
-      // csv butonu: bu modda gizli zaten (app.js)
       const dl1 = $('dl1'); dl1 && (dl1.disabled = !total);
 
       enforceSticky(); sched();
