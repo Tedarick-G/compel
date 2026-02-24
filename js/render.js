@@ -1,23 +1,27 @@
-import { esc,stockToNumber } from './utils.js';
+import { esc, stockToNumber } from './utils.js';
 import { COLS } from './match.js';
-const $=id=>document.getElementById(id);
-const colGrp=w=>`<colgroup>${w.map(x=>`<col style="width:${x}%">`).join('')}</colgroup>`;
+const $ = id => document.getElementById(id);
+const colGrp = w => `<colgroup>${w.map(x => `<col style="width:${x}%">`).join('')}</colgroup>`;
 
-const HDR1={
-  "Sıra No":"Sıra","Marka":"Marka",
-  "Ürün Kodu (Compel)":"Compel Ürün Kodu","Ürün Adı (Compel)":"Compel Ürün Adı",
-  "Ürün Kodu (T-Soft)":"T-Soft Ürün Kodu","Ürün Adı (T-Soft)":"Tsoft Ürün Adı",
-  "Stok (Compel)":"Compel","Stok (Depo)":"Aide","Stok (T-Soft)":"T-Soft",
-  "EAN (Compel)":"Compel EAN","EAN (T-Soft)":"T-Soft EAN"
+const HDR1 = {
+  "Sıra No": "Sıra", "Marka": "Marka",
+  "Ürün Kodu (Compel)": "Compel Ürün Kodu", "Ürün Adı (Compel)": "Compel Ürün Adı",
+  "Ürün Kodu (T-Soft)": "T-Soft Ürün Kodu", "Ürün Adı (T-Soft)": "Tsoft Ürün Adı",
+  "Stok (Compel)": "Compel", "Stok (Depo)": "Aide", "Stok (T-Soft)": "T-Soft",
+  "EAN (Compel)": "Compel EAN", "EAN (T-Soft)": "T-Soft EAN"
 };
-const disp=c=>HDR1[c]||c;
-const fmtHdr=s=>{s=(s??'').toString();const m=s.match(/^(.*?)(\s*\([^)]*\))\s*$/);return m?`<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>`:esc(s)};
+const disp = c => HDR1[c] || c;
+const fmtHdr = s => {
+  s = (s ?? '').toString();
+  const m = s.match(/^(.*?)(\s*\([^)]*\))\s*$/);
+  return m ? `<span class="hMain">${esc(m[1].trimEnd())}</span> <span class="hParen">${esc(m[2].trim())}</span>` : esc(s);
+};
 
-let _css=false;
-function css(){
-  if(_css)return;_css=true;
-  const st=document.createElement('style');
-  st.textContent=`
+let _css = false;
+function css() {
+  if (_css) return; _css = true;
+  const st = document.createElement('style');
+  st.textContent = `
 @keyframes namePulse{0%{text-shadow:0 0 0 rgba(134,239,172,0)}55%{text-shadow:0 0 14px rgba(134,239,172,.75)}100%{text-shadow:0 0 0 rgba(134,239,172,0)}}
 .namePulse{animation:namePulse 1000ms ease-in-out infinite;will-change:text-shadow}
 .tagFlex{display:flex;gap:10px;align-items:center;justify-content:space-between}
@@ -67,219 +71,228 @@ td.eanCell .cellTxt{white-space:nowrap!important}
   100%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}
 }
 tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
+
+/* ✅ Split tabloları “yarım görünme” (scaleX) sorununu önlemek için */
+.tableWrap.splitNoScale table{
+  transform:scaleX(1)!important;
+}
 `;
-  document.head.appendChild(st)
+  document.head.appendChild(st);
 }
 css();
 
-const cellName=(txt,href,pulse=false,extraCls='')=>{
-  const v=(txt??'').toString(),u=href||'',cls=`nm${pulse?' namePulse':''}${extraCls?` ${extraCls}`:''}`;
-  return u?`<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`:`<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`
+const cellName = (txt, href, pulse = false, extraCls = '') => {
+  const v = (txt ?? '').toString(), u = href || '', cls = `nm${pulse ? ' namePulse' : ''}${extraCls ? ` ${extraCls}` : ''}`;
+  return u ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>` : `<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`;
 };
 
-let _raf=0,_bound=false;
-const sched=()=>{_raf&&cancelAnimationFrame(_raf);_raf=requestAnimationFrame(adjust)};
-const firstEl=td=>td?.querySelector('.cellTxt,.nm,input,button,select,div')||null;
+let _raf = 0, _bound = false;
+const sched = () => { _raf && cancelAnimationFrame(_raf); _raf = requestAnimationFrame(adjust); };
+const firstEl = td => td?.querySelector('.cellTxt,.nm,input,button,select,div') || null;
 
-function enforceSticky(){
-  document.querySelectorAll('.tableWrap').forEach(w=>{
-    w.style.overflowX='hidden';
-    w.style.overflowY='auto';
-    w.style.overflow='hidden auto';
+function enforceSticky() {
+  document.querySelectorAll('.tableWrap').forEach(w => {
+    w.style.overflowX = 'hidden';
+    w.style.overflowY = 'auto';
+    w.style.overflow = 'hidden auto';
   });
-  document.documentElement.style.setProperty('--theadTop','0px')
+  document.documentElement.style.setProperty('--theadTop', '0px');
 }
 
-function fitHeader(tableId){
-  const t=$(tableId);if(!t)return;
-  t.querySelectorAll('thead th').forEach(th=>{
-    const sp=th.querySelector('.hTxt');if(!sp)return;
-    sp.style.transform='scaleX(1)';
-    const avail=Math.max(10,th.clientWidth-2),need=sp.scrollWidth||0,s=need>avail?(avail/need):1;
-    sp.style.transform=`scaleX(${s})`
-  })
+function fitHeader(tableId) {
+  const t = $(tableId); if (!t) return;
+  t.querySelectorAll('thead th').forEach(th => {
+    const sp = th.querySelector('.hTxt'); if (!sp) return;
+    sp.style.transform = 'scaleX(1)';
+    const avail = Math.max(10, th.clientWidth - 2), need = sp.scrollWidth || 0, s = need > avail ? (avail / need) : 1;
+    sp.style.transform = `scaleX(${s})`;
+  });
 }
 
-function fitTableToWrap(tableId){
-  const t=$(tableId);
-  if(!t) return;
-  const wrap=t.closest('.tableWrap') || t.parentElement;
-  if(!wrap) return;
+function fitTableToWrap(tableId) {
+  const t = $(tableId);
+  if (!t) return;
+  const wrap = t.closest('.tableWrap') || t.parentElement;
+  if (!wrap) return;
 
-  t.style.transform='scaleX(1)';
+  // ✅ Split tabloları scale etmeyelim (yarım görünme fix)
+  if (wrap.classList.contains('splitNoScale')) return;
 
-  const wrapW=wrap.clientWidth||0;
-  if(wrapW<=0) return;
+  t.style.transform = 'scaleX(1)';
 
-  const clone=t.cloneNode(true);
-  clone.style.visibility='hidden';
-  clone.style.position='absolute';
-  clone.style.left='-99999px';
-  clone.style.top='0';
-  clone.style.transform='scaleX(1)';
-  clone.style.width='auto';
-  clone.style.tableLayout='auto';
+  const wrapW = wrap.clientWidth || 0;
+  if (wrapW <= 0) return;
+
+  const clone = t.cloneNode(true);
+  clone.style.visibility = 'hidden';
+  clone.style.position = 'absolute';
+  clone.style.left = '-99999px';
+  clone.style.top = '0';
+  clone.style.transform = 'scaleX(1)';
+  clone.style.width = 'auto';
+  clone.style.tableLayout = 'auto';
   document.body.appendChild(clone);
-  const naturalW=clone.scrollWidth||clone.getBoundingClientRect().width||0;
+  const naturalW = clone.scrollWidth || clone.getBoundingClientRect().width || 0;
   clone.remove();
 
-  if(!naturalW) return;
-  const s=Math.min(1, wrapW / naturalW);
-  if(s<0.999) t.style.transform=`scaleX(${s})`;
+  if (!naturalW) return;
+  const s = Math.min(1, wrapW / naturalW);
+  if (s < 0.999) t.style.transform = `scaleX(${s})`;
 }
 
-function adjust(){
-  _raf=0;enforceSticky();
-  ['t1','t2','t2L','t2R'].forEach(id=>{fitHeader(id);fitTableToWrap(id)});
+function adjust() {
+  _raf = 0; enforceSticky();
+  ['t1', 't2', 't2L', 't2R'].forEach(id => { fitHeader(id); fitTableToWrap(id); });
 
-  const nameFit=tableId=>{
-    const t=$(tableId);if(!t)return;
-    const rows=t.querySelectorAll('tbody tr'),G=6;
-    for(const tr of rows){
-      const tds=tr.querySelectorAll('td.nameCell');if(!tds.length)continue;
-      for(let i=tds.length-1;i>=0;i--){
-        const td=tds[i],nm=td.querySelector('.nm');if(!nm)continue;
-        const next=td.nextElementSibling,tdR=td.getBoundingClientRect(),nmR=nm.getBoundingClientRect();
-        let maxRight=tdR.right-G;
-        if(next){
-          const el=firstEl(next);
-          if(el){const r=el.getBoundingClientRect();maxRight=Math.min(tdR.right+next.getBoundingClientRect().width,r.left-G)}
-          else maxRight=next.getBoundingClientRect().right-G
+  const nameFit = tableId => {
+    const t = $(tableId); if (!t) return;
+    const rows = t.querySelectorAll('tbody tr'), G = 6;
+    for (const tr of rows) {
+      const tds = tr.querySelectorAll('td.nameCell'); if (!tds.length) continue;
+      for (let i = tds.length - 1; i >= 0; i--) {
+        const td = tds[i], nm = td.querySelector('.nm'); if (!nm) continue;
+        const next = td.nextElementSibling, tdR = td.getBoundingClientRect(), nmR = nm.getBoundingClientRect();
+        let maxRight = tdR.right - G;
+        if (next) {
+          const el = firstEl(next);
+          if (el) { const r = el.getBoundingClientRect(); maxRight = Math.min(tdR.right + next.getBoundingClientRect().width, r.left - G); }
+          else maxRight = next.getBoundingClientRect().right - G;
         }
-        nm.style.maxWidth=Math.max(40,maxRight-nmR.left)+'px'
+        nm.style.maxWidth = Math.max(40, maxRight - nmR.left) + 'px';
       }
     }
   };
-  ['t1','t2','t2L','t2R'].forEach(nameFit);
-  if(!_bound){_bound=true;addEventListener('resize',sched)}
+  ['t1', 't2', 't2L', 't2R'].forEach(nameFit);
+  if (!_bound) { _bound = true; addEventListener('resize', sched); }
 }
 
-const fmtNum=n=>{const x=Number(n);return Number.isFinite(x)?(Math.round(x)===x?String(x):String(x)):'0'};
-const fmtStockSimple=n=>{const x=Number(n);return Number.isFinite(x)?String(x):'0'};
+const fmtNum = n => { const x = Number(n); return Number.isFinite(x) ? (Math.round(x) === x ? String(x) : String(x)) : '0'; };
 
-export function createRenderer({ui}={}){
-  return{
+const stockLabel = (n) => {
+  const x = Number(n);
+  const v = Number.isFinite(x) ? x : 0;
+  return (v > 0) ? `Stok Var (${fmtNum(v)})` : `Stok Yok (${fmtNum(v)})`;
+};
+
+export function createRenderer({ ui } = {}) {
+  return {
     // ✅ Eski (Compel modu) render aynen
-    render(R,Ux,depotReady){
+    render(R, Ux, depotReady) {
       // Compel modu UI: split section kapat
-      const splitSec=$('unmatchedSplitSection'); splitSec && (splitSec.style.display='none');
-      const t2L=$('t2L'); t2L && (t2L.innerHTML='');
-      const t2R=$('t2R'); t2R && (t2R.innerHTML='');
+      const splitSec = $('unmatchedSplitSection'); splitSec && (splitSec.style.display = 'none');
+      const t2L = $('t2L'); t2L && (t2L.innerHTML = '');
+      const t2R = $('t2R'); t2R && (t2R.innerHTML = '');
 
-      const T1_SEP_LEFT=new Set(["Ürün Kodu (Compel)","Ürün Kodu (T-Soft)","Stok (Compel)","EAN (Compel)"]);
-      const tight=c=>(c==="Ürün Kodu (Compel)"||c==="Ürün Kodu (T-Soft)");
-      const NARROW_ONLY=new Set(["Sıra No","Marka","Ürün Kodu (Compel)","Ürün Kodu (T-Soft)"]);
+      const T1_SEP_LEFT = new Set(["Ürün Kodu (Compel)", "Ürün Kodu (T-Soft)", "Stok (Compel)", "EAN (Compel)"]);
+      const tight = c => (c === "Ürün Kodu (Compel)" || c === "Ürün Kodu (T-Soft)");
+      const NARROW_ONLY = new Set(["Sıra No", "Marka", "Ürün Kodu (Compel)", "Ürün Kodu (T-Soft)"]);
 
-      const W1=[4,8,10,20,10,20,8,8,8,7,7];
+      const W1 = [4, 8, 10, 20, 10, 20, 8, 8, 8, 7, 7];
 
-      const head=COLS.map(c=>{
-        const l=disp(c);
-        const cls=[
-          T1_SEP_LEFT.has(c)?'sepL':'',
-          tight(c)?'hdrThin hdrTight':'',
-          NARROW_ONLY.has(c)?'tightCol':''
+      const head = COLS.map(c => {
+        const l = disp(c);
+        const cls = [
+          T1_SEP_LEFT.has(c) ? 'sepL' : '',
+          tight(c) ? 'hdrThin hdrTight' : '',
+          NARROW_ONLY.has(c) ? 'tightCol' : ''
         ].filter(Boolean).join(' ');
-        return `<th class="${cls}" title="${esc(l)}"><span class="hTxt">${fmtHdr(l)}</span></th>`
+        return `<th class="${cls}" title="${esc(l)}"><span class="hTxt">${fmtHdr(l)}</span></th>`;
       }).join('');
 
-      const normS=s=>String(s??'').trim();
-      const cmpTR=(a,b)=>normS(a).localeCompare(normS(b),'tr',{sensitivity:'base'});
-      const Rview=(R||[])
-        .filter(r=>!!r?._m)
-        .map((row,idx)=>({row,idx}))
-        .sort((A,B)=>{
-          const a=A.row,b=B.row;
-          const ab=cmpTR(a?.["Marka"],b?.["Marka"]); if(ab) return ab;
-          const an=cmpTR(a?.["Ürün Adı (Compel)"],b?.["Ürün Adı (Compel)"]); if(an) return an;
-          const ac=cmpTR(a?.["Ürün Kodu (Compel)"],b?.["Ürün Kodu (Compel)"]); if(ac) return ac;
-          const tn=cmpTR(a?.["Ürün Adı (T-Soft)"],b?.["Ürün Adı (T-Soft)"]); if(tn) return tn;
-          return A.idx-B.idx;
+      const normS = s => String(s ?? '').trim();
+      const cmpTR = (a, b) => normS(a).localeCompare(normS(b), 'tr', { sensitivity: 'base' });
+      const Rview = (R || [])
+        .filter(r => !!r?._m)
+        .map((row, idx) => ({ row, idx }))
+        .sort((A, B) => {
+          const a = A.row, b = B.row;
+          const ab = cmpTR(a?.["Marka"], b?.["Marka"]); if (ab) return ab;
+          const an = cmpTR(a?.["Ürün Adı (Compel)"], b?.["Ürün Adı (Compel)"]); if (an) return an;
+          const ac = cmpTR(a?.["Ürün Kodu (Compel)"], b?.["Ürün Kodu (Compel)"]); if (ac) return ac;
+          const tn = cmpTR(a?.["Ürün Adı (T-Soft)"], b?.["Ürün Adı (T-Soft)"]); if (tn) return tn;
+          return A.idx - B.idx;
         })
-        .map(x=>x.row);
+        .map(x => x.row);
 
-      const body=(Rview||[]).map((r,rowIdx)=>`<tr>${COLS.map((c,idx)=>{
-        let v=r[c]??'';
-        if(c==="Sıra No") v=String(rowIdx+1);
+      const body = (Rview || []).map((r, rowIdx) => `<tr>${COLS.map((c, idx) => {
+        let v = r[c] ?? '';
+        if (c === "Sıra No") v = String(rowIdx + 1);
 
-        if(c==="Ürün Adı (Compel)")return `<td class="left nameCell">${cellName(v,r._clink||'')}</td>`;
-        if(c==="Ürün Adı (T-Soft)"){
-          const txt=(v??'').toString().trim();
-          return `<td class="left nameCell">${cellName(txt,r._seo||'')}</td>`;
+        if (c === "Ürün Adı (Compel)") return `<td class="left nameCell">${cellName(v, r._clink || '')}</td>`;
+        if (c === "Ürün Adı (T-Soft)") {
+          const txt = (v ?? '').toString().trim();
+          return `<td class="left nameCell">${cellName(txt, r._seo || '')}</td>`;
         }
 
-        const seq=idx===0;
-        const ean=(c==="EAN (Compel)"||c==="EAN (T-Soft)");
-        const eanBad=(c==="EAN (T-Soft)"&&r?._eanBad===true);
-        const stokBad=(c==="Stok (T-Soft)"&&r?._stokBad===true);
-        const bad=eanBad||stokBad;
+        const seq = idx === 0;
+        const ean = (c === "EAN (Compel)" || c === "EAN (T-Soft)");
+        const eanBad = (c === "EAN (T-Soft)" && r?._eanBad === true);
+        const stokBad = (c === "Stok (T-Soft)" && r?._stokBad === true);
+        const bad = eanBad || stokBad;
 
-        const cls=[
-          T1_SEP_LEFT.has(c)?'sepL':'',
-          seq?'seqCell':'',
-          ean?'eanCell':'',
-          bad?'flagBad':'',
-          NARROW_ONLY.has(c)?'tightCol':''
+        const cls = [
+          T1_SEP_LEFT.has(c) ? 'sepL' : '',
+          seq ? 'seqCell' : '',
+          ean ? 'eanCell' : '',
+          bad ? 'flagBad' : '',
+          NARROW_ONLY.has(c) ? 'tightCol' : ''
         ].filter(Boolean).join(' ');
 
-        const title=(c==="Stok (Depo)"&&depotReady)?`${v} (Depo Toplam: ${r._draw??'0'})`:v;
-        return `<td class="${cls}" title="${esc(title)}"><span class="cellTxt">${esc(v)}</span></td>`
+        const title = (c === "Stok (Depo)" && depotReady) ? `${v} (Depo Toplam: ${r._draw ?? '0'})` : v;
+        return `<td class="${cls}" title="${esc(title)}"><span class="cellTxt">${esc(v)}</span></td>`;
       }).join('')}</tr>`).join('');
 
-      $('t1').innerHTML=colGrp(W1)+`<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+      $('t1').innerHTML = colGrp(W1) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
-      const sec=$('unmatchedSection'),ut=$('unmatchedTitle');
-      ut&&(ut.textContent='Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi');
-      const U=Array.isArray(Ux)?Ux:[];
-      if(!U.length){sec&&(sec.style.display='none')}
-      else{
-        sec&&(sec.style.display='');
+      // Compel unmatched (eski davranış) — burada sen zaten app.js’de Ux boş bırakıyorsun.
+      const sec = $('unmatchedSection'), ut = $('unmatchedTitle');
+      ut && (ut.textContent = 'Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi');
+      const U = Array.isArray(Ux) ? Ux : [];
+      if (!U.length) { sec && (sec.style.display = 'none'); }
+      else {
+        sec && (sec.style.display = '');
 
-        const UCOLS=[
-          "Sıra",
-          "Marka",
-          "Compel Ürün Kodu",
-          "Compel Ürün Adı",
-          "T-Soft Ürün Kodu",
-          "T-Soft Ürün Adı",
-          "Aide Ürün Kodu",
-          "Aide Ürün Adı"
+        const UCOLS = [
+          "Sıra", "Marka",
+          "Compel Ürün Kodu", "Compel Ürün Adı",
+          "T-Soft Ürün Kodu", "T-Soft Ürün Adı",
+          "Aide Ürün Kodu", "Aide Ürün Adı"
         ];
+        const W2 = [4, 10, 10, 18, 10, 18, 10, 20];
 
-        const W2=[4,10,10,18,10,18,10,20];
-
-        const head2=UCOLS.map(c=>{
-          const sep=(c==="Compel Ürün Kodu"||c==="T-Soft Ürün Kodu"||c==="Aide Ürün Kodu")?' sepL':'';
-          const tightCol=(c==="Sıra"||c==="Marka"||c==="Compel Ürün Kodu"||c==="T-Soft Ürün Kodu"||c==="Aide Ürün Kodu")?' tightCol':'';
-          return `<th class="${(sep+tightCol).trim()}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
+        const head2 = UCOLS.map(c => {
+          const sep = (c === "Compel Ürün Kodu" || c === "T-Soft Ürün Kodu" || c === "Aide Ürün Kodu") ? ' sepL' : '';
+          const tightCol = (c === "Sıra" || c === "Marka" || c === "Compel Ürün Kodu" || c === "T-Soft Ürün Kodu" || c === "Aide Ürün Kodu") ? ' tightCol' : '';
+          return `<th class="${(sep + tightCol).trim()}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
         }).join('');
 
-        const body2=U.map((r,i)=>{
-          const seq=r["Sıra"]??String(i+1),brand=r["Marka"]??'';
-          const cCode=(r["Compel Ürün Kodu"]??r["Ürün Kodu (Compel)"]??'').toString().trim();
-          const cNm=r["Compel Ürün Adı"]??'',cLn=r._clink||'',cPulse=!!r._pulseC;
+        const body2 = U.map((r, i) => {
+          const seq = r["Sıra"] ?? String(i + 1), brand = r["Marka"] ?? '';
+          const cCode = (r["Compel Ürün Kodu"] ?? r["Ürün Kodu (Compel)"] ?? '').toString().trim();
+          const cNm = r["Compel Ürün Adı"] ?? '', cLn = r._clink || '', cPulse = !!r._pulseC;
 
-          const tCode=(r["T-Soft Ürün Kodu"]??'').toString().trim();
-          const tNm=r["T-Soft Ürün Adı"]??'',tLn=r._seo||'';
+          const tCode = (r["T-Soft Ürün Kodu"] ?? '').toString().trim();
+          const tNm = r["T-Soft Ürün Adı"] ?? '', tLn = r._seo || '';
 
-          const aCode=(r["Aide Ürün Kodu"]??'').toString().trim();
-          const aNm=r["Aide Ürün Adı"]??r["Depo Ürün Adı"]??'',aPulse=!!r._pulseD;
+          const aCode = (r["Aide Ürün Kodu"] ?? '').toString().trim();
+          const aNm = r["Aide Ürün Adı"] ?? r["Depo Ürün Adı"] ?? '', aPulse = !!r._pulseD;
 
-          const cNum=stockToNumber(r._cstokraw??'',{source:'compel'});
-          const cTag=cNm?(cNum<=0?'(Stok Yok)':'(Stok Var)'):'';
+          const cNum = stockToNumber(r._cstokraw ?? '', { source: 'compel' });
+          const cTag = cNm ? (cNum <= 0 ? '(Stok Yok)' : '(Stok Var)') : '';
 
-          const tAct=r._taktif,tStock=Number(r._tstok??0);
-          const tTag=tNm?(tAct===true?`(Aktif: ${fmtNum(tStock)} Stok)`:(tAct===false?'(Pasif)':'')):'';
+          const tAct = r._taktif, tStock = Number(r._tstok ?? 0);
+          const tTag = tNm ? (tAct === true ? `(Aktif: ${fmtNum(tStock)} Stok)` : (tAct === false ? '(Pasif)' : '')) : '';
 
-          const aNum=Number(r._dstok??0);
-          const aTag=aNm?(aNum<=0?'(Stok Yok)':`(Stok: ${fmtNum(aNum)})`):'';
+          const aNum = Number(r._dstok ?? 0);
+          const aTag = aNm ? (aNum <= 0 ? '(Stok Yok)' : `(Stok: ${fmtNum(aNum)})`) : '';
 
-          const compelCode=cCode?`<span class="cellTxt" title="${esc(cCode)}">${esc(cCode)}</span>`:`<span class="cellTxt">—</span>`;
-          const tsoftCode=tCode?`<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>`:`<span class="cellTxt">—</span>`;
-          const aideCode=aCode?`<span class="cellTxt" title="${esc(aCode)}">${esc(aCode)}</span>`:`<span class="cellTxt">—</span>`;
+          const compelCode = cCode ? `<span class="cellTxt" title="${esc(cCode)}">${esc(cCode)}</span>` : `<span class="cellTxt">—</span>`;
+          const tsoftCode = tCode ? `<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>` : `<span class="cellTxt">—</span>`;
+          const aideCode = aCode ? `<span class="cellTxt" title="${esc(aCode)}">${esc(aCode)}</span>` : `<span class="cellTxt">—</span>`;
 
-          const compel=cNm?`<div class="tagFlex"><span class="tagLeft">${cellName(cNm,cLn,cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>`:`<span class="cellTxt">—</span>`;
-          const tsoft=tNm?`<div class="tagFlex"><span class="tagLeft">${cellName(tNm,tLn,false)}</span><span class="tagRight">${esc(tTag)}</span></div>`:`<span class="cellTxt">—</span>`;
-          const aide=aNm?`<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse?' namePulse':''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>`:`<span class="cellTxt">—</span>`;
+          const compel = cNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(cNm, cLn, cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>` : `<span class="cellTxt">—</span>`;
+          const tsoft = tNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(tNm, tLn, false)}</span><span class="tagRight">${esc(tTag)}</span></div>` : `<span class="cellTxt">—</span>`;
+          const aide = aNm ? `<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse ? ' namePulse' : ''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>` : `<span class="cellTxt">—</span>`;
 
           return `<tr id="u_${i}">
             <td class="seqCell tightCol" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
@@ -293,103 +306,133 @@ export function createRenderer({ui}={}){
 
             <td class="tightCol sepL" title="${esc(aCode)}">${aideCode}</td>
             <td class="left nameCell">${aide}</td>
-          </tr>`
+          </tr>`;
         }).join('');
 
-        $('t2').innerHTML=colGrp(W2)+`<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`
+        $('t2').innerHTML = colGrp(W2) + `<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`;
       }
 
-      const matched=(R||[]).filter(x=>x._m).length;
-      ui?.setChip?.('sum',`✓${matched} • ✕${(R||[]).length-matched}`,'muted');
-      const dl1=$('dl1');dl1&&(dl1.disabled=!(R||[]).length);
-      enforceSticky();sched()
+      const matched = (R || []).filter(x => x._m).length;
+      ui?.setChip?.('sum', `✓${matched} • ✕${(R || []).length - matched}`, 'muted');
+      const dl1 = $('dl1'); dl1 && (dl1.disabled = !((R || []).length));
+      enforceSticky(); sched();
     },
 
     // ✅ Yeni: Tüm Markalar modu render
-    renderAll({rows=[],unmatchedTsoft=[],unmatchedAide=[]}={},opts={}){
+    renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}, opts = {}) {
       // Compel unmatched kapat
-      const secOld=$('unmatchedSection'); secOld && (secOld.style.display='none');
-      const t2=$('t2'); t2 && (t2.innerHTML='');
+      const secOld = $('unmatchedSection'); secOld && (secOld.style.display = 'none');
+      const t2 = $('t2'); t2 && (t2.innerHTML = '');
 
-      // Ana tablo
-      const COLS_ALL=[
-        "Sıra","Marka",
-        "Ürün Kodu (T-Soft)","Ürün Adı (T-Soft)",
-        "Ürün Kodu (Aide)","Ürün Adı (Aide)",
-        "Stok (T-Soft)","Stok (Aide)"
+      // ✅ Split tabloları scale etmeyelim
+      const wrapL = $('t2L')?.closest?.('.tableWrap');
+      const wrapR = $('t2R')?.closest?.('.tableWrap');
+      wrapL && wrapL.classList.add('splitNoScale');
+      wrapR && wrapR.classList.add('splitNoScale');
+
+      // Ana tablo (yalnız matched satırlar geliyor — app.js tarafında filtreleniyor)
+      const COLS_ALL = [
+        "Sıra", "Marka",
+        "Ürün Kodu (T-Soft)", "Ürün Adı (T-Soft)",
+        "Ürün Kodu (Aide)", "Ürün Adı (Aide)",
+        "Stok (T-Soft)", "Stok (Aide)"
       ];
-      const SEP_LEFT=new Set(["Ürün Kodu (T-Soft)","Ürün Kodu (Aide)"]);
-      const tightCol=c=>(c==="Sıra"||c==="Marka"||c==="Ürün Kodu (T-Soft)"||c==="Ürün Kodu (Aide)"||c==="Stok (T-Soft)"||c==="Stok (Aide)");
-      const W=[6,12,14,22,14,22,5,5]; // toplam 100
 
-      const head=COLS_ALL.map(c=>{
-        const cls=[SEP_LEFT.has(c)?'sepL':'',tightCol(c)?'tightCol':''].filter(Boolean).join(' ');
-        return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
+      // ✅ Seperatör: Ürün Adı (Aide) ile Stok (T-Soft) arasına da çizgi
+      const SEP_LEFT = new Set(["Ürün Kodu (T-Soft)", "Ürün Kodu (Aide)", "Stok (T-Soft)"]);
+
+      const tightCol = c => (
+        c === "Sıra" || c === "Marka" ||
+        c === "Ürün Kodu (T-Soft)" || c === "Ürün Kodu (Aide)" ||
+        c === "Stok (T-Soft)" || c === "Stok (Aide)"
+      );
+
+      const W = [6, 12, 14, 22, 14, 22, 5, 5]; // 100
+
+      const head = COLS_ALL.map(c => {
+        const cls = [SEP_LEFT.has(c) ? 'sepL' : '', tightCol(c) ? 'tightCol' : ''].filter(Boolean).join(' ');
+        return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
       }).join('');
 
-      const body=(rows||[]).map((r,i)=>{
-        const trCls=[r?._pulse?'stockPulse':''].filter(Boolean).join(' ');
-        const tNameCls=r?._tpassive?'tsoftPassive':'';
+      const body = (rows || []).map((r, i) => {
+        const trCls = [r?._pulse ? 'stockPulse' : ''].filter(Boolean).join(' ');
+        const tNameCls = r?._tpassive ? 'tsoftPassive' : '';
+
+        const tStockLabel = stockLabel(r["Stok (T-Soft)"]);
+        const aStockLabel = stockLabel(r["Stok (Aide)"]);
+
         return `<tr class="${esc(trCls)}">
-          <td class="seqCell tightCol" title="${esc(String(i+1))}"><span class="cellTxt">${esc(String(i+1))}</span></td>
-          <td class="tightCol" title="${esc(r["Marka"]||'')}"><span class="cellTxt">${esc(r["Marka"]||'')}</span></td>
+          <td class="seqCell tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
+          <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
 
-          <td class="tightCol sepL" title="${esc(r["Ürün Kodu (T-Soft)"]||'')}"><span class="cellTxt">${esc(r["Ürün Kodu (T-Soft)"]||'')}</span></td>
-          <td class="left nameCell"><span class="nm ${tNameCls}" title="${esc(r["Ürün Adı (T-Soft)"]||'')}">${esc(r["Ürün Adı (T-Soft)"]||'')}</span></td>
+          <td class="tightCol sepL" title="${esc(r["Ürün Kodu (T-Soft)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (T-Soft)"] || '')}</span></td>
+          <td class="left nameCell"><span class="nm ${tNameCls}" title="${esc(r["Ürün Adı (T-Soft)"] || '')}">${esc(r["Ürün Adı (T-Soft)"] || '')}</span></td>
 
-          <td class="tightCol sepL" title="${esc(r["Ürün Kodu (Aide)"]||'')}"><span class="cellTxt">${esc(r["Ürün Kodu (Aide)"]||'')}</span></td>
-          <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı (Aide)"]||'')}">${esc(r["Ürün Adı (Aide)"]||'')}</span></td>
+          <td class="tightCol sepL" title="${esc(r["Ürün Kodu (Aide)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (Aide)"] || '')}</span></td>
+          <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı (Aide)"] || '')}">${esc(r["Ürün Adı (Aide)"] || '')}</span></td>
 
-          <td class="tightCol" title="${esc(fmtStockSimple(r["Stok (T-Soft)"]))}"><span class="cellTxt">${esc(fmtStockSimple(r["Stok (T-Soft)"]))}</span></td>
-          <td class="tightCol" title="${esc(fmtStockSimple(r["Stok (Aide)"]))}"><span class="cellTxt">${esc(fmtStockSimple(r["Stok (Aide)"]))}</span></td>
-        </tr>`
+          <td class="tightCol sepL" title="${esc(tStockLabel)}"><span class="cellTxt">${esc(tStockLabel)}</span></td>
+          <td class="tightCol" title="${esc(aStockLabel)}"><span class="cellTxt">${esc(aStockLabel)}</span></td>
+        </tr>`;
       }).join('');
 
-      $('t1').innerHTML=colGrp(W)+`<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+      $('t1').innerHTML = colGrp(W) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
       // Split unmatched
-      const splitSec=$('unmatchedSplitSection');
-      const title=$('unmatchedSplitTitle');
-      title && (title.textContent='Eşleşmeyen Ürünler');
+      const splitSec = $('unmatchedSplitSection');
+      const title = $('unmatchedSplitTitle');
+      title && (title.textContent = 'Eşleşmeyen Ürünler');
 
-      const hasUnm = (unmatchedTsoft?.length||0) + (unmatchedAide?.length||0);
-      if(!hasUnm){
-        splitSec && (splitSec.style.display='none');
-        $('t2L') && ($('t2L').innerHTML='');
-        $('t2R') && ($('t2R').innerHTML='');
-      }else{
-        splitSec && (splitSec.style.display='');
-        const colsU=["Sıra","Marka","Ürün Kodu","Ürün Adı","Stok"];
-        const WU=[8,18,18,44,12];
+      const hasUnm = (unmatchedTsoft?.length || 0) + (unmatchedAide?.length || 0);
+      if (!hasUnm) {
+        splitSec && (splitSec.style.display = 'none');
+        $('t2L') && ($('t2L').innerHTML = '');
+        $('t2R') && ($('t2R').innerHTML = '');
+      } else {
+        splitSec && (splitSec.style.display = '');
 
-        const mkTable=(id,arr,label)=>{
-          const headU=colsU.map((c,ix)=>{
-            const cls=[(c==="Ürün Kodu")?'sepL':'',(c==="Sıra"||c==="Marka"||c==="Ürün Kodu"||c==="Stok")?'tightCol':''].filter(Boolean).join(' ');
-            return `<th class="${cls}" title="${esc(label+' • '+c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`
+        const colsU = ["Sıra", "Marka", "Ürün Kodu", "Ürün Adı", "Stok"];
+        const WU = [8, 18, 18, 44, 12];
+
+        const mkTable = (id, arr, topTitle) => {
+          const headTitleRow = `<tr><th colspan="${colsU.length}" class="left" title="${esc(topTitle)}"><span class="hTxt">${esc(topTitle)}</span></th></tr>`;
+          const headU = colsU.map(c => {
+            const cls = [
+              (c === "Ürün Kodu") ? 'sepL' : '',
+              (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'tightCol' : ''
+            ].filter(Boolean).join(' ');
+            return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
           }).join('');
-          const bodyU=(arr||[]).map((r,i)=>`<tr>
-            <td class="seqCell tightCol" title="${esc(String(i+1))}"><span class="cellTxt">${esc(String(i+1))}</span></td>
-            <td class="tightCol" title="${esc(r["Marka"]||'')}"><span class="cellTxt">${esc(r["Marka"]||'')}</span></td>
-            <td class="tightCol sepL" title="${esc(r["Ürün Kodu"]||'')}"><span class="cellTxt">${esc(r["Ürün Kodu"]||'')}</span></td>
-            <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı"]||'')}">${esc(r["Ürün Adı"]||'')}</span></td>
-            <td class="tightCol" title="${esc(fmtStockSimple(r["Stok"]))}"><span class="cellTxt">${esc(fmtStockSimple(r["Stok"]))}</span></td>
-          </tr>`).join('');
-          $(id).innerHTML=colGrp(WU)+`<thead><tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
+
+          const bodyU = (arr || []).map((r, i) => {
+            const st = stockLabel(r["Stok"]);
+            return `<tr>
+              <td class="seqCell tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
+              <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
+              <td class="tightCol sepL" title="${esc(r["Ürün Kodu"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu"] || '')}</span></td>
+              <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
+              <td class="tightCol" title="${esc(st)}"><span class="cellTxt">${esc(st)}</span></td>
+            </tr>`;
+          }).join('');
+
+          $(id).innerHTML =
+            colGrp(WU) +
+            `<thead>${headTitleRow}<tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
         };
 
-        mkTable('t2L',unmatchedTsoft,'T-Soft');
-        mkTable('t2R',unmatchedAide,'Aide');
+        mkTable('t2L', unmatchedTsoft, "T-Soft'ta Aide ile Eşleşmeyen Ürünler");
+        mkTable('t2R', unmatchedAide, "Aide'de T-Soft ile Eşleşmeyen Ürünler");
       }
 
       // chips
-      const matchedCount=(rows||[]).filter(r=>r?._m).length;
-      const total=(rows||[]).length;
-      ui?.setChip?.('sum',`✓${matchedCount} • ✕${total-matchedCount}`,'muted');
+      const matchedCount = (rows || []).length;
+      const total = matchedCount + (unmatchedTsoft?.length || 0) + (unmatchedAide?.length || 0);
+      ui?.setChip?.('sum', `✓${matchedCount} • ✕${Math.max(0, total - matchedCount)}`, 'muted');
 
-      // csv butonu: bu modda da aç
-      const dl1=$('dl1'); dl1 && (dl1.disabled=!total);
+      // csv butonu: bu modda gizli zaten (app.js)
+      const dl1 = $('dl1'); dl1 && (dl1.disabled = !total);
 
-      enforceSticky();sched()
+      enforceSticky(); sched();
     }
-  }
+  };
 }
