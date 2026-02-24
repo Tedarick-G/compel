@@ -82,7 +82,10 @@ button:disabled:hover{background:var(--bg-elevated);border-color:var(--border-2)
   55%{box-shadow:0 0 18px var(--accent-glow);border-color:var(--accent-hover)}
   100%{box-shadow:0 0 0 rgba(232,60,97,0);border-color:var(--border-2)}
 }
-.guidePulse{animation:guidePulse var(--guideDur,1200ms) ease-in-out infinite}
+/* ✅ tempo: yavaştan hızlıya (ease-in) */
+.guidePulse{
+  animation:guidePulse var(--guideDur,1200ms) ease-in infinite;
+}
 
 .file{position:relative;justify-content:flex-start;gap:8px;padding:0 10px;user-select:none;cursor:pointer;max-width:520px;align-self:stretch}
 .file input{display:none}
@@ -119,6 +122,51 @@ button:disabled:hover{background:var(--bg-elevated);border-color:var(--border-2)
 }
 .chip.ok{color:var(--ok)}.chip.bad{color:var(--bad)}.chip.unk{color:var(--unk)}.chip.muted{opacity:.88;font-weight:900;color:var(--text-2)}
 
+/* ✅ Marka arama: go ile infoBox arasına */
+.brandSearchSlot{
+  flex:1 1 260px;
+  min-width:220px;
+  max-width:520px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.brandSearchShell{
+  width:100%;
+  height:36px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 10px;
+  border:1px solid var(--border-2);
+  border-radius:10px;
+  background:var(--bg-panel);
+}
+.brandSearchShell:focus-within{
+  border-color:var(--accent-hover);
+  box-shadow:0 0 18px rgba(232,60,97,.18);
+}
+.brandSearchInput{
+  width:100%;
+  background:transparent;
+  border:0;
+  outline:none;
+  color:var(--text);
+  font-weight:1100;
+  font-size:15px;
+  padding:0;
+  margin:0;
+  text-align:center; /* ✅ ortalı */
+}
+.brandSearchInput::placeholder{color:var(--text-2);opacity:.85}
+.brandSearchIcon{
+  opacity:.85;
+  font-weight:1100;
+  color:var(--text-2);
+  user-select:none;
+  white-space:nowrap;
+}
+
 .brandList{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 10px;align-content:flex-start;overscroll-behavior-x:none;touch-action:pan-y;align-items:center}
 .brand{
   display:inline-flex;align-items:center;padding:7px 10px;
@@ -136,6 +184,21 @@ button:disabled:hover{background:var(--bg-elevated);border-color:var(--border-2)
 .bRow{display:flex;gap:8px;align-items:center;min-width:0;width:100%}
 .bNm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:1100;font-size:15px;line-height:1.2;max-width:70vw}
 .bCt{white-space:nowrap;opacity:.9;font-size:11px;color:var(--text-2)}
+
+.brandToggle{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  padding:8px 0 2px;
+  user-select:none;
+  cursor:pointer;
+  font-weight:1100;
+  color:var(--text-2);
+}
+.brandToggle:hover{color:var(--text)}
+.brandToggle .arr{font-size:14px;opacity:.9}
 
 .panel{padding:0;display:flex;flex-direction:column;gap:6px;overflow:visible}
 .tableWrap{
@@ -262,7 +325,7 @@ a:hover{text-decoration:underline}
   font-weight:800;font-size:14px
 }
 
-/* ✅ AIDE WEBP: eski konumu koru (wrap sadece hover label için) */
+/* ✅ AIDE WEBP */
 #depoSpinWrap{
   position:absolute;
   left:calc(50% + 100px);
@@ -359,7 +422,17 @@ a:hover{text-decoration:underline}
   <button id="depoBtn" class="file" type="button" title="Aide Stok"><span class="fbtn">4) Aide Stok</span><span class="fname hide" id="n4">Yükle</span></button>
 </div>
 
-<button id="go" title="Listele">Listele</button><button id="dl1" disabled>CSV Çıktı</button></div>
+<button id="go" title="Listele">Listele</button>
+
+<!-- ✅ Marka Ara: go ile infoBox arasına -->
+<div class="brandSearchSlot" id="brandSearchSlot" aria-label="Marka arama">
+  <div class="brandSearchShell">
+    <input id="brandSearchInputTop" class="brandSearchInput" placeholder="Marka Ara" autocomplete="off" />
+    <span class="brandSearchIcon">(🔎)</span>
+  </div>
+</div>
+
+<button id="dl1" disabled>CSV Çıktı</button></div>
 
 <div class="ibox" id="infoBox">
 <span class="chip muted" id="brandStatus">Markalar yükleniyor…</span>
@@ -375,13 +448,11 @@ a:hover{text-decoration:underline}
 <section class="maincol">
   <section class="panel results"><div class="tableWrap"><table id="t1"></table></div></section>
 
-  <!-- Eski unmatched (Compel modu) -->
   <section class="panel unmatched" id="unmatchedSection" style="display:none">
     <div class="rowSep" aria-hidden="true"></div><div class="listTitleBar" id="unmatchedTitle">Eşleşmeyen Ürünler Listesi</div>
     <div class="tableWrap"><table id="t2"></table></div>
   </section>
 
-  <!-- ✅ Yeni split unmatched (Tüm Markalar modu) -->
   <section class="panel unmatched" id="unmatchedSplitSection" style="display:none">
     <div class="rowSep" aria-hidden="true"></div>
     <div class="listTitleBar" id="unmatchedSplitTitle">Eşleşmeyen Ürünler</div>
@@ -395,7 +466,6 @@ a:hover{text-decoration:underline}
 
 <div class="imgOverlay" id="imgOverlay" aria-hidden="true"><div class="lbWrap"><img id="imgOverlayImg" alt="Önizleme"></div></div>
 
-<!-- ✅ TSOFT MODAL -->
 <div class="modal" id="tsoftModal" aria-hidden="true"><div class="modalInner small popInner" id="tsoftInner">
 <div class="popPickWrap">
   <button id="tsoftDailyBtn" class="cloudBtnSmall" type="button" disabled title="Bugünün verisini seç">Bugün —</button>
@@ -425,7 +495,6 @@ a:hover{text-decoration:underline}
 </button>
 </div></div></div></div></div>
 
-<!-- ✅ AIDE MODAL -->
 <div class="modal" id="depoModal" aria-hidden="true"><div class="modalInner small" id="depoInner">
 <div class="modalBtns">
   <button id="aideDailyBtn" class="cloudBtnSmall" style="height:36px" type="button" disabled title="Bugünün verisini seç">Bugün —</button>
