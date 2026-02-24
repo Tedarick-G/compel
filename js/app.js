@@ -17,9 +17,6 @@ const SUPPLIERS = {
 
 let ACTIVE_SUPPLIER = SUPPLIERS.COMPEL;
 
-// =========================
-// 0) “Seed” marka listeleri
-// =========================
 const AIDE_BRAND_SEED = [
   "ABLETON","ADAM","AKAI","AKÇELİK","AKG","ALPHATHETA","APPLE","ART","ARTURIA","ASIMETRIKPRO",
   "ASTONMICROPHONES","AUDIENT","AUDIO TECHNICA","B&W","BEHRINGER","BEYER","BEYERDYNAMIC","BİOLİTE","BO",
@@ -59,7 +56,6 @@ const TSOFT_BRAND_SEED = [
   "Monster Audio","Rhodes","High Line","Fender Studio","Corsair"
 ];
 
-// ✅ Görsel Title Case (TR uyumlu)
 function toTitleCaseTR(s) {
   const t = String(s || "").trim().replace(/\s+/g, " ");
   if (!t) return "";
@@ -73,9 +69,8 @@ function toTitleCaseTR(s) {
     .join(" ");
 }
 
-// Tüm Markalar modunda gösterilecek kanonik liste (T-Soft tercih)
 function buildCanonicalBrandList() {
-  const pref = new Map(); // brNorm -> displayName
+  const pref = new Map();
   const _tsoftSet = new Set(
     TSOFT_BRAND_SEED.map((x) => String(x || "").trim()).filter(Boolean)
   );
@@ -96,28 +91,21 @@ function buildCanonicalBrandList() {
   for (const nm of AIDE_BRAND_SEED) add(nm, 1);
   for (const nm of TSOFT_BRAND_SEED) add(nm, 2);
 
-  const brands = [...pref.entries()]
+  return [...pref.entries()]
     .map(([brNorm, name]) => ({ id: brNorm, slug: brNorm, name, count: "—" }))
     .sort((a, b) =>
       String(a.name).localeCompare(String(b.name), "tr", { sensitivity: "base" })
     );
-
-  return brands;
 }
 
-// =========================
-// Guide
-// =========================
 let guideStep = "brand";
 const GUIDE_DUR = { brand: 1500, tsoft: 1250, aide: 1050, list: 900 };
 
 const clearGuidePulse = () =>
-  ["brandHintBtn", "sescBox", "depoBtn", "go", "tsoftDailyBtn", "aideDailyBtn"].forEach(
-    (id) => {
-      const el = $(id);
-      el && (el.classList.remove("guidePulse"), el.style.removeProperty("--guideDur"));
-    }
-  );
+  ["brandHintBtn", "sescBox", "depoBtn", "go", "tsoftDailyBtn", "aideDailyBtn"].forEach((id) => {
+    const el = $(id);
+    el && (el.classList.remove("guidePulse"), el.style.removeProperty("--guideDur"));
+  });
 
 const setGuideStep = (s) => ((guideStep = s || "done"), updateGuideUI());
 
@@ -129,16 +117,12 @@ const updateGuideUI = () => {
   const apply = (el) =>
     el && (el.style.setProperty("--guideDur", `${dur}ms`), el.classList.add("guidePulse"));
 
-  // Akış: brand -> tsoft -> aide -> list
   if (guideStep === "brand") apply($("brandHintBtn"));
   else if (guideStep === "tsoft") apply($("sescBox"));
   else if (guideStep === "aide") apply($("depoBtn"));
   else if (guideStep === "list") apply($("go"));
 };
 
-// =========================
-// UI helpers
-// =========================
 const setChip = (id, t, cls = "") => {
   const e = $(id);
   if (!e) return;
@@ -168,11 +152,9 @@ const ui = { setChip, setStatus };
 
 const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
 
-// ✅ küçük CSS injection (arama kutusu + guide pulse ease-in)
 (() => {
   const st = document.createElement("style");
   st.textContent = `
-    /* Marka Ara kutusu (üst sırada, go ile infobox arası) */
     .brandSearchSlot{
       flex: 1 1 280px;
       min-width: 220px;
@@ -213,8 +195,6 @@ const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
       min-width: 0;
     }
     .brandSearchBox input::placeholder{ color:var(--text-2); opacity:.85; }
-
-    /* Toggle satırı */
     .brandToggle{
       display:flex;
       justify-content:center;
@@ -229,16 +209,11 @@ const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
     }
     .brandToggle:hover{color:var(--text)}
     .brandToggle .arr{font-size:14px;opacity:.9}
-
-    /* guide pulse tempo: yavaştan hızlıya (ease-in) */
     .guidePulse{ animation-timing-function: ease-in !important; }
   `;
   document.head.appendChild(st);
 })();
 
-// =========================
-// daily
-// =========================
 let DAILY_META = null;
 let DAILY_SELECTED = { tsoft: "", aide: "" };
 let DAILY_READ_CACHE = { date: "", pass: "" };
@@ -308,18 +283,13 @@ function getTsoftDailyPick() {
 }
 
 function paintDailyUI() {
-  const tBtn = $("tsoftDailyBtn"),
-    aBtn = $("aideDailyBtn");
+  const tBtn = $("tsoftDailyBtn"), aBtn = $("aideDailyBtn");
 
   const tPick = getTsoftDailyPick();
   const tLabel = tPick.exists
     ? tPick.isToday
-      ? tPick.hm
-        ? `Bugün ${tPick.hm} Tarihli Veri`
-        : "Bugün — Tarihli Veri"
-      : tPick.dmy
-      ? `${tPick.dmy} Tarihli Veri`
-      : "—"
+      ? tPick.hm ? `Bugün ${tPick.hm} Tarihli Veri` : "Bugün — Tarihli Veri"
+      : tPick.dmy ? `${tPick.dmy} Tarihli Veri` : "—"
     : "—";
 
   const tSel = !!(tPick.ymd && DAILY_SELECTED.tsoft && DAILY_SELECTED.tsoft === tPick.ymd);
@@ -333,12 +303,8 @@ function paintDailyUI() {
   const aPick = getAideDailyPick();
   const aLabel = aPick.exists
     ? aPick.isToday
-      ? aPick.hm
-        ? `Bugün ${aPick.hm} Tarihli Veri`
-        : "Bugün — Tarihli Veri"
-      : aPick.dmy
-      ? `${aPick.dmy} Tarihli Veri`
-      : "—"
+      ? aPick.hm ? `Bugün ${aPick.hm} Tarihli Veri` : "Bugün — Tarihli Veri"
+      : aPick.dmy ? `${aPick.dmy} Tarihli Veri` : "—"
     : "—";
 
   const aSel = !!(aPick.ymd && DAILY_SELECTED.aide && DAILY_SELECTED.aide === aPick.ymd);
@@ -349,18 +315,9 @@ function paintDailyUI() {
     setBtnSel(aBtn, aSel);
   }
 
-  const tPrev = $("tsoftPrev"),
-    aPrev = $("aidePrev");
-  if (tPrev) {
-    tPrev.style.display = "none";
-    tPrev.textContent = "";
-    tPrev.title = "";
-  }
-  if (aPrev) {
-    aPrev.style.display = "none";
-    aPrev.textContent = "";
-    aPrev.title = "";
-  }
+  const tPrev = $("tsoftPrev"), aPrev = $("aidePrev");
+  if (tPrev) (tPrev.style.display = "none"), (tPrev.textContent = ""), (tPrev.title = "");
+  if (aPrev) (aPrev.style.display = "none"), (aPrev.textContent = ""), (aPrev.title = "");
 }
 
 async function refreshDailyMeta() {
@@ -386,8 +343,6 @@ function toggleDaily(kind) {
     DAILY_SELECTED.tsoft = was ? "" : pick.ymd;
     paintDailyUI();
     if (!was) closeModalByButton("tsoftDismiss");
-
-    // ✅ Guide: eski tarih seçildiğinde T-Soft pulse bitsin -> Aide pulse
     if (!was && DAILY_SELECTED.tsoft) setGuideStep("aide");
   } else if (kind === "aide") {
     const pick = getAideDailyPick();
@@ -396,8 +351,6 @@ function toggleDaily(kind) {
     DAILY_SELECTED.aide = was ? "" : pick.ymd;
     paintDailyUI();
     if (!was) closeModalByButton("depoClose");
-
-    // ✅ Guide: Aide seçildi -> List
     if (!was && DAILY_SELECTED.aide) setGuideStep("list");
   }
 }
@@ -430,9 +383,6 @@ $("aideDailyBtn")?.addEventListener("click", (e) => {
   toggleDaily("aide");
 });
 
-// =========================
-// Brand UI + arama kutusu üst sırada
-// =========================
 let BRANDS = [];
 let SELECTED = new Set();
 let brandPrefix = "Hazır";
@@ -444,12 +394,10 @@ let brandListExpanded = false;
 const COMPEL_LIMIT = 25;
 const ALL_LIMIT = 3;
 
-// Arama kutusu DOM (persist)
 let brandSearchSlotEl = null;
 let brandSearchInputEl = null;
 
 function ensureBrandSearchSlot() {
-  // Yerleşim: "go" ile "infoBox" arasına
   const goBtn = $("go");
   const infoBox = $("infoBox");
   const leftControls = $("leftControls");
@@ -465,22 +413,15 @@ function ensureBrandSearchSlot() {
       </div>
     `;
 
-    // go’dan sonra, infoBox’tan önce yerleştir
-    // leftControls içinde sıralama: ... depoBtn go dl1 ...
-    // biz go’nun hemen sağına koyacağız
     const dl1 = $("dl1");
-    if (dl1 && dl1.parentElement === leftControls) {
-      leftControls.insertBefore(brandSearchSlotEl, dl1);
-    } else {
-      leftControls.appendChild(brandSearchSlotEl);
-    }
+    if (dl1 && dl1.parentElement === leftControls) leftControls.insertBefore(brandSearchSlotEl, dl1);
+    else leftControls.appendChild(brandSearchSlotEl);
 
     brandSearchInputEl = $("brandSearchTopInput");
 
     if (brandSearchInputEl) {
       brandSearchInputEl.addEventListener("input", () => {
         brandFilterText = String(brandSearchInputEl.value || "");
-        // arama aktifken expanded otomatik gerekmez; limit zaten kalkacak (all-visible)
         renderBrands();
       });
       brandSearchInputEl.addEventListener("keydown", (e) => {
@@ -494,7 +435,6 @@ function ensureBrandSearchSlot() {
     }
   }
 
-  // supplier Akalın iken gizle
   if (brandSearchSlotEl) {
     brandSearchSlotEl.style.display = ACTIVE_SUPPLIER === SUPPLIERS.AKALIN ? "none" : "";
   }
@@ -522,7 +462,6 @@ function getLimitBySupplier() {
 }
 
 function computeVisibleRowsLimit() {
-  // arama varsa: sınırsız göster (toggle / limit mantığını devre dışı)
   if (String(brandFilterText || "").trim()) return 9999;
   return brandListExpanded ? 9999 : getLimitBySupplier();
 }
@@ -530,7 +469,6 @@ function computeVisibleRowsLimit() {
 const renderBrands = () => {
   ensureBrandSearchSlot();
 
-  // input’un değeri state ile senkron (re-render input yok, sadece value set)
   if (brandSearchInputEl && brandSearchInputEl.value !== String(brandFilterText || "")) {
     brandSearchInputEl.value = String(brandFilterText || "");
   }
@@ -539,9 +477,7 @@ const renderBrands = () => {
   if (!list) return;
   list.innerHTML = "";
 
-  // ✅ arama aktifken “Tümünü Seç” kaybolsun
   const searching = !!String(brandFilterText || "").trim();
-
   const visAll = getVisibleBrands();
 
   if (!searching) {
@@ -555,7 +491,6 @@ const renderBrands = () => {
     list.appendChild(allBtn);
   }
 
-  // Marka listesi
   const brandsWrap = document.createElement("div");
   brandsWrap.dataset.kind = "brandsWrap";
   brandsWrap.style.display = "contents";
@@ -579,7 +514,6 @@ const renderBrands = () => {
     brandsWrap.appendChild(d);
   });
 
-  // Toggle satırı
   const limitBase = getLimitBySupplier();
   const shouldShowToggle = !searching && vis.length > limitBase;
 
@@ -595,14 +529,14 @@ const renderBrands = () => {
   }
 
   updateBrandChip();
-
-  // guide: marka seçimi -> tsoft
   if (!hasEverListed) setGuideStep(SELECTED.size > 0 ? "tsoft" : "brand");
   applySupplierUi();
 };
 
 function toggleBrand(id, el) {
-  SELECTED.has(id) ? (SELECTED.delete(id), el.classList.remove("sel")) : (SELECTED.add(id), el.classList.add("sel"));
+  SELECTED.has(id)
+    ? (SELECTED.delete(id), el.classList.remove("sel"))
+    : (SELECTED.add(id), el.classList.add("sel"));
   updateBrandChip();
   if (!hasEverListed) setGuideStep(SELECTED.size > 0 ? "tsoft" : "brand");
   applySupplierUi();
@@ -621,14 +555,10 @@ $("brandList")?.addEventListener("click", (e) => {
   const el = e.target.closest(".brand, .brandToggle");
   if (!el) return;
   const kind = el.dataset.kind || "brand";
-  if (kind === "all") {
-    toggleAllVisible();
-    return;
-  }
+  if (kind === "all") return void toggleAllVisible();
   if (kind === "toggle") {
     brandListExpanded = !brandListExpanded;
-    renderBrands();
-    return;
+    return void renderBrands();
   }
   if (kind === "brand") {
     const id = el.dataset.id;
@@ -645,13 +575,11 @@ $("brandList")?.addEventListener("keydown", (e) => {
   if (kind === "toggle") {
     e.preventDefault();
     brandListExpanded = !brandListExpanded;
-    renderBrands();
-    return;
+    return void renderBrands();
   }
   if (kind === "all") {
     e.preventDefault();
-    toggleAllVisible();
-    return;
+    return void toggleAllVisible();
   }
   if (kind === "brand") {
     e.preventDefault();
@@ -671,9 +599,6 @@ const pulseBrands = () => {
 };
 $("brandHintBtn")?.addEventListener("click", pulseBrands);
 
-// =========================
-// Supplier dropdown
-// =========================
 let COMPEL_BRANDS_CACHE = null;
 
 async function initBrands() {
@@ -730,17 +655,13 @@ async function initBrands() {
   };
 
   const setSupplier = async (name) => {
-    if (!name || name === ACTIVE_SUPPLIER) {
-      close();
-      return;
-    }
+    if (!name || name === ACTIVE_SUPPLIER) return void close();
 
     ACTIVE_SUPPLIER = name;
 
     const lab = $("supplierLabel");
     lab && (lab.textContent = `1) Tedarikçi: ${name}`);
 
-    // supplier değişince: arama ve expand reset
     brandFilterText = "";
     brandListExpanded = false;
     if (brandSearchInputEl) brandSearchInputEl.value = "";
@@ -797,9 +718,6 @@ async function initBrands() {
   paint();
 })();
 
-// =========================
-// Supplier UI behavior
-// =========================
 function applySupplierUi() {
   ensureBrandSearchSlot();
 
@@ -814,11 +732,9 @@ function applySupplierUi() {
     }
   }
 
-  // CSV Çıktı gizli
   const dl1 = $("dl1");
   dl1 && (dl1.style.display = "none");
 
-  // ✅ Tüm Markalar modunda: infoBox’ta Compel chip görünmesin
   const l1 = $("l1Chip");
   if (l1) l1.style.display = ACTIVE_SUPPLIER === SUPPLIERS.ALL ? "none" : "";
 
@@ -840,14 +756,10 @@ function applySupplierUi() {
   updateGuideUI();
 }
 
-// =========================
-// Depot + Matcher + Renderer
-// =========================
 const depot = createDepot({
   ui,
   normBrand,
   onDepotLoaded: async () => {
-    // ✅ Aide yüklendi -> List pulse
     DAILY_SELECTED.aide = "";
     paintDailyUI();
     if (!hasEverListed) setGuideStep("list");
@@ -895,9 +807,6 @@ const matcher = createMatcher({
 
 const renderer = createRenderer({ ui });
 
-// =========================
-// List title
-// =========================
 let listTitleEl = null,
   listSepEl = null,
   lastListedTitle = "",
@@ -972,9 +881,6 @@ const lockListTitleFromCurrentSelection = () => {
   listTitleEl && (listTitleEl.textContent = lastListedTitle);
 };
 
-// =========================
-// Common helpers
-// =========================
 const setGoMode = (mode) => {
   goMode = mode;
   const b = $("go");
@@ -984,10 +890,7 @@ const setGoMode = (mode) => {
 };
 
 const clearOnlyLists = () => {
-  const t1 = $("t1"),
-    t2 = $("t2"),
-    t2L = $("t2L"),
-    t2R = $("t2R");
+  const t1 = $("t1"), t2 = $("t2"), t2L = $("t2L"), t2R = $("t2R");
   t1 && (t1.innerHTML = "");
   t2 && (t2.innerHTML = "");
   t2L && (t2L.innerHTML = "");
@@ -1003,9 +906,6 @@ const clearOnlyLists = () => {
   setChip("sum", "✓0 • ✕0", "muted");
 };
 
-// =========================
-// Scan state
-// =========================
 let abortCtrl = null;
 
 const setScanState = (on) => {
@@ -1017,9 +917,6 @@ const setScanState = (on) => {
   $("aideDailyBtn") && ($("aideDailyBtn").disabled = on || $("aideDailyBtn").disabled);
 };
 
-// =========================
-// T-Soft popover (mevcut)
-// =========================
 (() => {
   const box = $("sescBox"),
     inp = $("f2"),
@@ -1129,10 +1026,8 @@ const setScanState = (on) => {
     });
 })();
 
-// file label
 const bind = (inId, outId, empty) => {
-  const inp = $(inId),
-    out = $(outId);
+  const inp = $(inId), out = $(outId);
   if (!inp || !out) return;
 
   const upd = () => {
@@ -1145,10 +1040,8 @@ const bind = (inId, outId, empty) => {
       out.title = f.name;
     }
 
-    // ✅ CSV yüklenince: daily seçimi temizle
     f && (DAILY_SELECTED.tsoft = "", paintDailyUI());
 
-    // ✅ Guide: herhangi bir CSV yüklendiğinde T-Soft pulse dursun -> Aide pulse
     if (!hasEverListed) {
       if (SELECTED.size === 0) setGuideStep("brand");
       else if (!f) setGuideStep("tsoft");
@@ -1163,15 +1056,11 @@ const bind = (inId, outId, empty) => {
 };
 bind("f2", "n2", "Yükle");
 
-// aide save checkbox
 $("aideSaveToday")?.addEventListener("change", (e) => {
   const cb = e.target;
   cb.checked && !ensureSaveCredOrCancel() && (cb.checked = false);
 });
 
-// =========================
-// 1) COMPEL MODE
-// =========================
 function refreshCompel() {
   const { R } = matcher.getResults();
   const Ux = [];
@@ -1230,12 +1119,9 @@ async function generateCompel() {
         depot.reset();
         depot.loadText(String(d.data || ""));
         setChip("l4Chip", `Aide:${depot.count()}`);
-
-        // ✅ daily Aide seçildi -> List pulse
         if (!hasEverListed) setGuideStep("list");
       }
 
-      // ✅ daily T-Soft seçildi -> Aide pulse
       if (DAILY_SELECTED.tsoft && !hasEverListed) setGuideStep("aide");
     }
 
@@ -1349,9 +1235,7 @@ async function generateCompel() {
     lockListTitleFromCurrentSelection();
     setListTitleVisible(true);
 
-    // ✅ Liste oluştu -> done
     if (!hasEverListed) setGuideStep("done");
-
     return true;
   } catch (e) {
     String(e?.message || "").toLowerCase().includes("unauthorized") && (DAILY_READ_CACHE = { date: "", pass: "" });
@@ -1367,9 +1251,6 @@ async function generateCompel() {
   }
 }
 
-// =========================
-// 2) TÜM MARKALAR MODE (mevcut haliyle)
-// =========================
 function codeNorm(s) {
   return (s ?? "").toString().replace(/\u00A0/g, " ").trim().replace(/\s+/g, " ").toLocaleUpperCase(TR);
 }
@@ -1499,7 +1380,7 @@ function computeAllModeResult({ tsoftMap, aideMap, selectedBrandsNorm }) {
 
       const brandDisp = toTitleCaseTR((t?.brandDisp || "").trim() || brNorm);
 
-      const r = {
+      rows.push({
         "Marka": brandDisp,
         "Ürün Kodu (T-Soft)": t ? t.code : "",
         "Ürün Adı (T-Soft)": t ? (t.name || "") : "",
@@ -1512,9 +1393,7 @@ function computeAllModeResult({ tsoftMap, aideMap, selectedBrandsNorm }) {
         _pulse: pulse,
         _tpassive: tPassive,
         _bn: brNorm,
-      };
-
-      rows.push(r);
+      });
 
       if (t && !a) unmatchedTsoft.push({ "Marka": brandDisp, "Ürün Kodu": t.code, "Ürün Adı": t.name || "", "Stok": tStock, _bn: brNorm });
       if (a && !t) unmatchedAide.push({ "Marka": brandDisp, "Ürün Kodu": a.code, "Ürün Adı": a.name || "", "Stok": aStock, _bn: brNorm });
@@ -1603,7 +1482,6 @@ async function generateAll() {
         depot.reset();
         depot.loadText(String(d.data || ""));
         setChip("l4Chip", `Aide:${depot.count()}`);
-
         if (!hasEverListed) setGuideStep("list");
       }
 
@@ -1635,7 +1513,6 @@ async function generateAll() {
     setListTitleVisible(true);
 
     if (!hasEverListed) setGuideStep("done");
-
     return true;
   } catch (e) {
     String(e?.message || "").toLowerCase().includes("unauthorized") && (DAILY_READ_CACHE = { date: "", pass: "" });
@@ -1650,9 +1527,6 @@ async function generateAll() {
   }
 }
 
-// =========================
-// reset all
-// =========================
 function resetAll() {
   try {
     abortCtrl?.abort?.();
@@ -1700,21 +1574,14 @@ function resetAll() {
   applySupplierUi();
 }
 
-// =========================
-// go button
-// =========================
 async function handleGo() {
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
     applySupplierUi();
     return;
   }
 
-  if (goMode === "clear") {
-    resetAll();
-    return;
-  }
+  if (goMode === "clear") return void resetAll();
 
-  // Listele pulse kapanması
   if (!hasEverListed && guideStep === "list") setGuideStep("done");
 
   if (!hasEverListed && !SELECTED.size) {
@@ -1737,9 +1604,6 @@ async function handleGo() {
 
 $("go") && ($("go").onclick = handleGo);
 
-// =========================
-// init
-// =========================
 ensureListHeader();
 setGoMode("list");
 setGuideStep("brand");
