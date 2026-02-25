@@ -49,29 +49,13 @@ th.hdrTight .hTxt{letter-spacing:-.02em;font-size:12px}
 th.tightCol,td.tightCol{padding-left:4px!important;padding-right:4px!important}
 td.eanCell{white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important}
 td.eanCell .cellTxt{white-space:nowrap!important}
-
-/* ✅ SAYFAYA SIĞDIRMA */
 .tableWrap{overflow-x:hidden!important}
 #t1,#t2,#t2L,#t2R{ width:100%!important; table-layout:fixed!important; transform-origin:left top; }
 #t1 th,#t1 td,#t2 th,#t2 td,#t2L th,#t2L td,#t2R th,#t2R td{white-space:nowrap}
 #t1 td.nameCell,#t2 td.nameCell,#t2L td.nameCell,#t2R td.nameCell{min-width:0}
-
-/* ✅ Tüm Markalar: pasif T-Soft adı */
-.tsoftPassive{
-  text-decoration-line:line-through;
-  text-decoration-thickness:1px;
-  text-decoration-color:rgba(160,160,160,.85);
-}
-
-/* ✅ Tüm Markalar: stok tutarsız satır soft pulse */
-@keyframes softStockPulse{
-  0%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}
-  55%{box-shadow:0 0 14px rgba(232,60,97,.26); background:rgba(232,60,97,.06)}
-  100%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}
-}
+.tsoftPassive{text-decoration-line:line-through;text-decoration-thickness:1px;text-decoration-color:rgba(160,160,160,.85)}
+@keyframes softStockPulse{0%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}55%{box-shadow:0 0 14px rgba(232,60,97,.26); background:rgba(232,60,97,.06)}100%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}}
 tr.stockPulse{animation:softStockPulse 1000ms cubic-bezier(.25,.0,.9,1) infinite}
-
-/* ✅ Split unmatched başlıkları ortalı */
 .unmHead{font-weight:1300; text-align:center!important; letter-spacing:.01em;}
 `;
   document.head.appendChild(st);
@@ -79,7 +63,8 @@ tr.stockPulse{animation:softStockPulse 1000ms cubic-bezier(.25,.0,.9,1) infinite
 css();
 
 const cellName = (txt, href, pulse = false, extraCls = '') => {
-  const v = (txt ?? '').toString(), u = href || '';
+  const v = (txt ?? '').toString();
+  const u = href || '';
   const cls = `nm${pulse ? ' namePulse' : ''}${extraCls ? ` ${extraCls}` : ''}`;
   return u
     ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
@@ -110,17 +95,13 @@ function fitHeader(tableId) {
     const sp = th.querySelector('.hTxt');
     if (!sp) return;
     sp.style.transform = 'scaleX(1)';
-    const avail = Math.max(10, th.clientWidth - 2),
-      need = sp.scrollWidth || 0,
-      s = need > avail ? (avail / need) : 1;
+    const avail = Math.max(10, th.clientWidth - 2);
+    const need = sp.scrollWidth || 0;
+    const s = need > avail ? (avail / need) : 1;
     sp.style.transform = `scaleX(${s})`;
   });
 }
 
-/**
- * ✅ Split listelerde (t2L/t2R) scaleX yapma -> “yarım yarım” görünmesin.
- * Ana tabloda fit devam.
- */
 function fitTableToWrap(tableId) {
   const t = $(tableId);
   if (!t) return;
@@ -158,29 +139,34 @@ function fitTableToWrap(tableId) {
 function adjust() {
   _raf = 0;
   enforceSticky();
-  ['t1', 't2', 't2L', 't2R'].forEach(id => {
-    fitHeader(id);
-    fitTableToWrap(id);
-  });
+  ['t1', 't2', 't2L', 't2R'].forEach(id => { fitHeader(id); fitTableToWrap(id); });
 
   const nameFit = tableId => {
     const t = $(tableId);
     if (!t) return;
-    const rows = t.querySelectorAll('tbody tr'), G = 6;
+    const rows = t.querySelectorAll('tbody tr');
+    const G = 6;
     for (const tr of rows) {
       const tds = tr.querySelectorAll('td.nameCell');
       if (!tds.length) continue;
       for (let i = tds.length - 1; i >= 0; i--) {
-        const td = tds[i], nm = td.querySelector('.nm');
+        const td = tds[i];
+        const nm = td.querySelector('.nm');
         if (!nm) continue;
-        const next = td.nextElementSibling, tdR = td.getBoundingClientRect(), nmR = nm.getBoundingClientRect();
+
+        const next = td.nextElementSibling;
+        const tdR = td.getBoundingClientRect();
+        const nmR = nm.getBoundingClientRect();
+
         let maxRight = tdR.right - G;
         if (next) {
           const el = firstEl(next);
           if (el) {
             const r = el.getBoundingClientRect();
             maxRight = Math.min(tdR.right + next.getBoundingClientRect().width, r.left - G);
-          } else maxRight = next.getBoundingClientRect().right - G;
+          } else {
+            maxRight = next.getBoundingClientRect().right - G;
+          }
         }
         nm.style.maxWidth = Math.max(40, maxRight - nmR.left) + 'px';
       }
@@ -196,10 +182,9 @@ function adjust() {
 
 const fmtNum = n => {
   const x = Number(n);
-  return Number.isFinite(x) ? (Math.round(x) === x ? String(x) : String(x)) : '0';
+  return Number.isFinite(x) ? String(x) : '0';
 };
 
-// ✅ Tüm Markalar stok label
 const fmtStockLabel = n => {
   const x = Number(n);
   const v = Number.isFinite(x) ? x : 0;
@@ -208,7 +193,6 @@ const fmtStockLabel = n => {
 
 export function createRenderer({ ui } = {}) {
   return {
-    // ✅ Compel modu
     render(R, Ux, depotReady) {
       const splitSec = $('unmatchedSplitSection');
       splitSec && (splitSec.style.display = 'none');
@@ -349,15 +333,11 @@ export function createRenderer({ ui } = {}) {
       const matched = (R || []).filter(x => x._m).length;
       ui?.setChip?.('sum', `✓${matched} • ✕${(R || []).length - matched}`, 'muted');
 
-      const dl1 = $('dl1');
-      dl1 && (dl1.disabled = !(R || []).length);
-
       enforceSticky();
       sched();
     },
 
-    // ✅ Tüm Markalar modu
-    renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}, opts = {}) {
+    renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}) {
       const secOld = $('unmatchedSection');
       secOld && (secOld.style.display = 'none');
       const t2 = $('t2');
@@ -386,7 +366,7 @@ export function createRenderer({ ui } = {}) {
       }).join('');
 
       const body = (viewRows || []).map((r, i) => {
-        const trCls = [r?._pulse ? 'stockPulse' : ''].filter(Boolean).join(' ');
+        const trCls = r?._pulse ? 'stockPulse' : '';
         const tNameCls = r?._tpassive ? 'tsoftPassive' : '';
         return `
 <tr class="${esc(trCls)}">
@@ -420,8 +400,7 @@ export function createRenderer({ ui } = {}) {
 
         const mkTable = (id, arr, label) => {
           const topHead = `<tr><th class="unmHead" colspan="${colsU.length}" title="${esc(label)}">${esc(label)}</th></tr>`;
-          const headU = colsU.map((c) => {
-            // ✅ Ürün Adı ile Stok arasına separator => "Stok" sütununa sepL
+          const headU = colsU.map(c => {
             const sep = (c === "Ürün Kodu" || c === "Stok") ? 'sepL' : '';
             const tight = (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'tightCol' : '';
             const cls = [sep, tight].filter(Boolean).join(' ');
@@ -444,11 +423,8 @@ export function createRenderer({ ui } = {}) {
         mkTable('t2R', unmatchedAide, "Aide'de T-Soft ile Eşleşmeyen Ürünler");
       }
 
-      const total = (viewRows || []).length;
+      const total = viewRows.length;
       ui?.setChip?.('sum', `✓${total} • ✕0`, 'muted');
-
-      const dl1 = $('dl1');
-      dl1 && (dl1.disabled = !total);
 
       enforceSticky();
       sched();
