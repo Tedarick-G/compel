@@ -152,20 +152,27 @@ const ui = { setChip, setStatus };
 
 const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
 
+/**
+ * ✅ Marka Ara kutusu:
+ * - Başlangıçta sadece "Marka Ara" yazısı sığacak kadar kısa
+ * - Yazdıkça (uzun olunca) genişler
+ * - Hiçbir zaman başlangıç genişliğinden daha küçük olmaz
+ */
 (() => {
   const st = document.createElement("style");
   st.textContent = `
     .brandSearchSlot{
-      flex: 1 1 280px;
-      min-width: 220px;
+      flex: 0 0 auto;
       display:flex;
       align-items:center;
       justify-content:center;
+      margin-left:auto; /* leftControls içinde go'dan sonra sağa doğru */
     }
     .brandSearchBox{
-      width: min(520px, 92vw);
+      width:auto;
+      max-width: min(520px, 92vw);
       height: 36px;
-      display:flex;
+      display:inline-flex;
       align-items:center;
       gap:8px;
       padding:0 10px;
@@ -173,6 +180,7 @@ const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
       border-radius:10px;
       background: var(--bg-panel);
       box-sizing:border-box;
+      overflow:hidden;
     }
     .brandSearchBox .ic{
       opacity:.88;
@@ -180,10 +188,12 @@ const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
       color: var(--text-2);
       white-space:nowrap;
       user-select:none;
+      flex:0 0 auto;
     }
     .brandSearchBox input{
-      flex:1 1 auto;
-      width:100%;
+      width: 12ch; /* JS ile dinamik ayarlanacak */
+      min-width: 12ch;
+      max-width: 52ch;
       background:transparent;
       border:0;
       outline:none;
@@ -192,7 +202,6 @@ const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
       font-size:14px;
       padding:0;
       margin:0;
-      min-width: 0;
     }
     .brandSearchBox input::placeholder{ color:var(--text-2); opacity:.85; }
     .brandToggle{
@@ -391,37 +400,58 @@ let hasEverListed = false;
 let brandFilterText = "";
 let brandListExpanded = false;
 
-const COMPEL_LIMIT = 25;
+/**
+ * ✅ Compel’de artık tüm markalar görünsün.
+ */
+const COMPEL_LIMIT = 9999;
 const ALL_LIMIT = 3;
 
 let brandSearchSlotEl = null;
 let brandSearchInputEl = null;
+let brandSearchBoxEl = null;
+
+function resizeBrandSearchBox() {
+  if (!brandSearchInputEl || !brandSearchBoxEl) return;
+
+  const placeholder = String(brandSearchInputEl.getAttribute("placeholder") || "Marka Ara");
+  const baseLen = Math.max(placeholder.length, 8);
+
+  const val = String(brandSearchInputEl.value || "");
+  const len = Math.max(baseLen, val.length);
+
+  // küçük başlasın, yazdıkça büyüsün
+  const ch = Math.min(52, Math.max(baseLen + 2, len + 2));
+
+  brandSearchInputEl.style.width = `${ch}ch`;
+  brandSearchInputEl.style.minWidth = `${baseLen + 2}ch`;
+}
 
 function ensureBrandSearchSlot() {
   const goBtn = $("go");
-  const infoBox = $("infoBox");
   const leftControls = $("leftControls");
-  if (!goBtn || !infoBox || !leftControls) return;
+  if (!goBtn || !leftControls) return;
 
   if (!brandSearchSlotEl) {
     brandSearchSlotEl = document.createElement("div");
     brandSearchSlotEl.className = "brandSearchSlot";
     brandSearchSlotEl.innerHTML = `
-      <div class="brandSearchBox" role="search" aria-label="Marka Ara">
+      <div class="brandSearchBox" id="brandSearchBox" role="search" aria-label="Marka Ara">
         <span class="ic">🔎</span>
         <input id="brandSearchTopInput" type="text" placeholder="Marka Ara" autocomplete="off" />
       </div>
     `;
 
-    const dl1 = $("dl1");
-    if (dl1 && dl1.parentElement === leftControls) leftControls.insertBefore(brandSearchSlotEl, dl1);
-    else leftControls.appendChild(brandSearchSlotEl);
+    // ✅ go butonunun hemen sağına koy
+    const afterGo = goBtn.nextSibling;
+    leftControls.insertBefore(brandSearchSlotEl, afterGo);
 
     brandSearchInputEl = $("brandSearchTopInput");
+    brandSearchBoxEl = $("brandSearchBox");
 
     if (brandSearchInputEl) {
       brandSearchInputEl.addEventListener("input", () => {
         brandFilterText = String(brandSearchInputEl.value || "");
+        resizeBrandSearchBox();
         renderBrands();
       });
       brandSearchInputEl.addEventListener("keydown", (e) => {
@@ -429,9 +459,13 @@ function ensureBrandSearchSlot() {
           e.preventDefault();
           brandFilterText = "";
           brandSearchInputEl.value = "";
+          resizeBrandSearchBox();
           renderBrands();
         }
       });
+
+      // ilk ölçü
+      resizeBrandSearchBox();
     }
   }
 
@@ -457,7 +491,7 @@ function getVisibleBrands() {
 
 function getLimitBySupplier() {
   if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) return ALL_LIMIT;
-  if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) return COMPEL_LIMIT;
+  if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) return COMPEL_LIMIT; // ✅ hepsi
   return 9999;
 }
 
@@ -471,6 +505,7 @@ const renderBrands = () => {
 
   if (brandSearchInputEl && brandSearchInputEl.value !== String(brandFilterText || "")) {
     brandSearchInputEl.value = String(brandFilterText || "");
+    resizeBrandSearchBox();
   }
 
   const list = $("brandList");
@@ -514,8 +549,15 @@ const renderBrands = () => {
     brandsWrap.appendChild(d);
   });
 
+  /**
+   * ✅ Compel sekmesinde “Listeyi Genişlet/Daralt” tamamen kapalı.
+   * (Tüm markalar zaten görünüyor.)
+   */
   const limitBase = getLimitBySupplier();
-  const shouldShowToggle = !searching && vis.length > limitBase;
+  const shouldShowToggle =
+    !searching &&
+    ACTIVE_SUPPLIER !== SUPPLIERS.COMPEL &&
+    vis.length > limitBase;
 
   if (shouldShowToggle) {
     const tgl = document.createElement("div");
@@ -664,7 +706,10 @@ async function initBrands() {
 
     brandFilterText = "";
     brandListExpanded = false;
-    if (brandSearchInputEl) brandSearchInputEl.value = "";
+    if (brandSearchInputEl) {
+      brandSearchInputEl.value = "";
+      resizeBrandSearchBox();
+    }
 
     if (name === SUPPLIERS.AKALIN) {
       brandPrefix = "Akalın";
@@ -731,9 +776,6 @@ function applySupplierUi() {
       go.title = "Listele";
     }
   }
-
-  const dl1 = $("dl1");
-  dl1 && (dl1.style.display = "none");
 
   const l1 = $("l1Chip");
   if (l1) l1.style.display = ACTIVE_SUPPLIER === SUPPLIERS.ALL ? "none" : "";
@@ -1543,7 +1585,10 @@ function resetAll() {
   brandFilterText = "";
   brandListExpanded = false;
 
-  if (brandSearchInputEl) brandSearchInputEl.value = "";
+  if (brandSearchInputEl) {
+    brandSearchInputEl.value = "";
+    resizeBrandSearchBox();
+  }
 
   renderBrands();
 
