@@ -117,6 +117,10 @@ function fitHeader(tableId) {
   });
 }
 
+/**
+ * ✅ Split listelerde (t2L/t2R) scaleX yapma -> “yarım yarım” görünmesin.
+ * Ana tabloda fit devam.
+ */
 function fitTableToWrap(tableId) {
   const t = $(tableId);
   if (!t) return;
@@ -195,6 +199,7 @@ const fmtNum = n => {
   return Number.isFinite(x) ? (Math.round(x) === x ? String(x) : String(x)) : '0';
 };
 
+// ✅ Tüm Markalar stok label
 const fmtStockLabel = n => {
   const x = Number(n);
   const v = Number.isFinite(x) ? x : 0;
@@ -203,6 +208,7 @@ const fmtStockLabel = n => {
 
 export function createRenderer({ ui } = {}) {
   return {
+    // ✅ Compel modu
     render(R, Ux, depotReady) {
       const splitSec = $('unmatchedSplitSection');
       splitSec && (splitSec.style.display = 'none');
@@ -343,10 +349,14 @@ export function createRenderer({ ui } = {}) {
       const matched = (R || []).filter(x => x._m).length;
       ui?.setChip?.('sum', `✓${matched} • ✕${(R || []).length - matched}`, 'muted');
 
+      const dl1 = $('dl1');
+      dl1 && (dl1.disabled = !(R || []).length);
+
       enforceSticky();
       sched();
     },
 
+    // ✅ Tüm Markalar modu
     renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}, opts = {}) {
       const secOld = $('unmatchedSection');
       secOld && (secOld.style.display = 'none');
@@ -411,6 +421,7 @@ export function createRenderer({ ui } = {}) {
         const mkTable = (id, arr, label) => {
           const topHead = `<tr><th class="unmHead" colspan="${colsU.length}" title="${esc(label)}">${esc(label)}</th></tr>`;
           const headU = colsU.map((c) => {
+            // ✅ Ürün Adı ile Stok arasına separator => "Stok" sütununa sepL
             const sep = (c === "Ürün Kodu" || c === "Stok") ? 'sepL' : '';
             const tight = (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'tightCol' : '';
             const cls = [sep, tight].filter(Boolean).join(' ');
@@ -435,6 +446,9 @@ export function createRenderer({ ui } = {}) {
 
       const total = (viewRows || []).length;
       ui?.setChip?.('sum', `✓${total} • ✕0`, 'muted');
+
+      const dl1 = $('dl1');
+      dl1 && (dl1.disabled = !total);
 
       enforceSticky();
       sched();
