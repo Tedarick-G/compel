@@ -1,253 +1,293 @@
-
-
-import { TR,T,D,nowISO,inStock } from './utils.js';
+import { TR,T,parseDelimited,pickColumn } from './utils.js';
 const $=id=>document.getElementById(id);
 
-export const COLS=[
-  "Sıra No","Marka",
-  "Ürün Kodu (Compel)","Ürün Adı (Compel)",
-  "Ürün Kodu (T-Soft)","Ürün Adı (T-Soft)",
-  "Stok (Compel)","Stok (Depo)","Stok (T-Soft)",
-  "EAN (Compel)","EAN (T-Soft)"
-];
+export function createDepot({ui,onDepotLoaded,normBrand}={}){
+  let L4=[],C4={},idxD=new Map(),depotReady=false;
+  let idxBR=new Map(),brandLabelByNorm=new Map();
+  let lastRawText='';
 
-const bRaw=s=>{
-  let x=(s??'').toString().replace(/\u00A0/g,' ').trim();if(!x)return '';
-  try{x=x.normalize('NFKD').replace(/[\u0300-\u036f]/g,'')}catch{}
-  x=x.replace(/Ø/g,'O').replace(/ø/g,'o').toLocaleUpperCase(TR)
-    .replace(/\u0130/g,'I').replace(/\u0131/g,'I')
-    .replace(/Ğ/g,'G').replace(/Ü/g,'U').replace(/Ş/g,'S').replace(/Ö/g,'O').replace(/Ç/g,'C')
-    .replace(/&/g,' ').replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
-  return x
-};
-const compact=k=>(k??'').toString().replace(/\s+/g,'');
-const ALIAS=new Map([
-  ['RODE','RODE'],['RODEX','RODE'],
-  ['DENON','DENON DJ'],['DENONDJ','DENON DJ'],
-  ['FENDER','FENDER STUDIO'],['FENDERSTUDIO','FENDER STUDIO'],
-  ['UNIVERSAL','UNIVERSAL AUDIO'],['UNIVERSALAUDIO','UNIVERSAL AUDIO'],
-  ['WARMAUDIO','WARM AUDIO'],
-  ['BEYER','BEYERDYNAMIC'],['BEYERDYNAMIC','BEYERDYNAMIC'],
-  ['ALLENHEATH','ALLEN HEATH'],
-  ['MARANTZPROFESSIONAL','MARANTZ'],
-  ['RUPERTNEVEDESIGNS','RUPERT NEVE'],
-]);
-const B=s=>{const k=bRaw(s);return k?(ALIAS.get(compact(k))||k):''};
-const Bx=s=>bRaw(s);
-export const normBrand=B;
+  const depoBtn=$('depoBtn'),depoModal=$('depoModal'),depoInner=$('depoInner'),depoPaste=$('depoPaste'),
+    depoLoad=$('depoLoad'),depoPasteBtn=$('depoPasteBtn'),depoClose=$('depoClose'),depoClear=$('depoClear'),depoSpin=$('depoSpin'),
+    aideSaveLine=$('aideSaveLine'),aideSaveToday=$('aideSaveToday');
 
-const parseAktif=v=>{
-  const s=(v??'').toString().trim().toLowerCase();if(!s)return null;
-  if(s==='true'||s==='1'||s==='yes'||s==='evet')return true;
-  if(s==='false'||s==='0'||s==='no'||s==='hayir'||s==='hayır')return false;
-  return null
-};
+  const depotCodeNorm=s=>(s??'').toString().replace(/\u00A0/g,' ').trim().replace(/\s+/g,' ').toLocaleUpperCase(TR);
+  const depotCodeAlt=n=>{if(!n||!/^[0-9]+$/.test(n))return '';return n.replace(/^0+(?=\d)/,'')};
 
-const safeUrl=u=>{u=T(u);return(!u||/^\s*javascript:/i.test(u))?'':u};
-const SEO='https://www.sescibaba.com/';
-const normSeo=raw=>{
-  let u=T(raw);
-  if(!u||/^\s*javascript:/i.test(u))return '';
-  if(/^https?:\/\//i.test(u))return u;
-  if(/^www\./i.test(u))return 'https://'+u;
-  if(/^sescibaba\.com/i.test(u))return 'https://'+u;
-  return SEO+u.replace(/^\/+/,'');
-};
-
-const eans=v=>{
-  v=(v??'').toString().trim();if(!v)return [];
-  return v.split(/[^0-9]+/g).map(D).filter(x=>x.length>=8)
-};
-const eanAlt1=x=>{
-  x=D(x||'');if(!x)return '';
-  if(x.startsWith('0')&&x.length>1)return x.slice(1);
-  return ''
-};
-
-export function createMatcher({getDepotAgg,isDepotReady}={}){
-  let L1=[],L2=[],L2all=[],C1={},C2={};
-  let map={meta:{version:1,createdAt:nowISO(),updatedAt:nowISO()},mappings:{}};
-  let idxB=new Map(),idxW=new Map(),idxS=new Map();
-  let R=[],U=[],UT=[];
-
-  const key=(r,fn)=>{
-    const b=fn(r[C1.marka]||''),code=T(r[C1.urunKodu]||''),name=T(r[C1.urunAdi]||'');
-    return b+'||'+(code||('NAME:'+name))
+  const isBadBrand=raw=>{const s=T(raw);return !s||s==='-'||s==='—'||s.toLocaleUpperCase(TR)==='N/A'};
+  const brandNormFn=raw=>{
+    const s=T(raw);if(!s||isBadBrand(s))return '';
+    return (typeof normBrand==='function'?normBrand(s):s.toLocaleUpperCase(TR).replace(/\s+/g,' ').trim())
   };
-  const kNew=r=>key(r,B),kOld=r=>key(r,Bx);
 
-  const buildIdx=()=>{
-    idxB=new Map();idxW=new Map();idxS=new Map();
-    for(const r of L2){
-      const bark=D(r[C2.barkod]||''),ws=T(r[C2.ws]||''),sup=T(r[C2.sup]||'');
-      if(bark){idxB.has(bark)||idxB.set(bark,[]);idxB.get(bark).push(r)}
-      ws&&idxW.set(ws,r);sup&&idxS.set(sup,r)
+  const depotStockNum=raw=>{
+    let s=(raw??'').toString().trim();if(!s)return 0;
+    if(s.includes('.')&&s.includes(','))s=s.replace(/\./g,'').replace(/,/g,'.'); else s=s.replace(/,/g,'.');
+    s=s.replace(/[^0-9.\-]/g,'');const n=parseFloat(s);
+    return Number.isFinite(n)?n:0
+  };
+
+  const pickAideName=r=>{
+    const model=C4.model?T(r[C4.model]??''):'';
+    if(model)return model;
+    const urunAdi=C4.urunAdi?T(r[C4.urunAdi]??''):'';
+    if(urunAdi)return urunAdi;
+    const ac=C4.aciklama?T(r[C4.aciklama]??''):'';
+    return ac||''
+  };
+
+  function buildBrandRecordsIdx(){
+    idxBR=new Map();brandLabelByNorm=new Map();
+    if(!depotReady||!L4.length||!C4.stokKodu)return;
+    const seen=new Map();
+    for(const r of L4){
+      const brRaw=T(C4.marka?(r[C4.marka]??''):(r["Marka"]??''));
+      if(isBadBrand(brRaw))continue;
+      const brNorm=brandNormFn(brRaw);if(!brNorm)continue;
+      brandLabelByNorm.has(brNorm)||brandLabelByNorm.set(brNorm,brRaw||brNorm);
+      const code=depotCodeNorm(r[C4.stokKodu]??'');if(!code)continue;
+      const alt=depotCodeAlt(code),name=pickAideName(r);if(!name)continue;
+      seen.has(brNorm)||seen.set(brNorm,new Set());
+      const s=seen.get(brNorm),k=(code+'||'+name).toLocaleLowerCase(TR).replace(/\s+/g,' ').trim();
+      if(k&&s.has(k))continue;k&&s.add(k);
+      idxBR.has(brNorm)||idxBR.set(brNorm,[]);
+      idxBR.get(brNorm).push({code,alt,name})
     }
-    const wsDl=$('wsCodes'),supDl=$('supCodes');
-    wsDl&&(wsDl.innerHTML='');supDl&&(supDl.innerHTML='')
-  };
+    for(const [br,arr] of idxBR.entries())arr.sort((a,b)=>String(a.name).localeCompare(String(b.name),'tr',{sensitivity:'base'}))
+  }
 
-  const byEan=r1=>{
-    const br1=B(r1[C1.marka]||'');
-    for(const e0 of eans(r1[C1.ean]||'')){
-      let arr=idxB.get(e0);
-      if((!arr||!arr.length)&&e0.startsWith('0')){const e1=e0.slice(1);arr=idxB.get(e1)||arr}
-      if(arr?.length)return arr.find(r2=>B(r2[C2.marka]||'')===br1)||arr[0]
+  function buildDepotIdx(){
+    idxD=new Map();
+    if(!depotReady||!L4.length||!C4.stokKodu)return;
+    for(const r of L4){
+      const k=depotCodeNorm(r[C4.stokKodu]??'');if(!k)continue;
+      idxD.has(k)||idxD.set(k,[]);idxD.get(k).push(r);
+      const alt=depotCodeAlt(k);
+      if(alt&&alt!==k){idxD.has(alt)||idxD.set(alt,[]);idxD.get(alt).push(r)}
     }
-    return null
+    buildBrandRecordsIdx()
+  }
+
+  const depotAgg=code=>{
+    if(!depotReady)return {num:0,raw:''};
+    const k=depotCodeNorm(code||'');if(!k)return {num:0,raw:'0'};
+    const alt=depotCodeAlt(k),arr=idxD.get(k)||(alt?idxD.get(alt):null);
+    if(!arr?.length)return {num:0,raw:'0'};
+    let sum=0;for(const r of arr)sum+=depotStockNum(r[C4.stok]??'');
+    return {num:sum,raw:String(sum)}
   };
 
-  const byCompelCodeWs=r1=>{
-    const code=T(r1[C1.urunKodu]||'');if(!code)return null;
-    const r2=idxW.get(code)||null;if(!r2)return null;
-    const b1=B(r1[C1.marka]||''),b2=B(r2[C2.marka]||'');
-    if(b1&&b2&&b1!==b2)return null;
-    return r2
-  };
+  // ✅ Tüm Markalar modu: marka+kod bazlı stok toplanmış map
+  function getBrandItemMap(){
+    const out=new Map(); // brNorm -> Map(codeNorm -> {code,name,num})
+    if(!depotReady||!L4.length||!C4.stokKodu)return out;
 
-  const byMap=r1=>{
-    const m=map.mappings||{},ent=m[kNew(r1)]??m[kOld(r1)];
-    if(!ent)return null;
-    if(typeof ent==='string')return idxW.get(ent)||idxS.get(ent)||null;
-    const ws=T(ent.webServisKodu||ent.ws||''),sup=T(ent.tedarikciUrunKodu||ent.supplier||'');
-    return (ws&&idxW.get(ws))||(sup&&idxS.get(sup))||null
-  };
+    for(const r of L4){
+      const brRaw=T(C4.marka?(r[C4.marka]??''):(r["Marka"]??''));
+      if(isBadBrand(brRaw))continue;
+      const brNorm=brandNormFn(brRaw);if(!brNorm)continue;
 
-  const compelLbl=raw=>{
-    const s=(raw??'').toString().trim();if(!s)return '';
-    return inStock(s,{source:'compel'})?'Stokta Var':'Stokta Yok'
-  };
-  const tsoftLbl=(raw,ok)=>ok?(inStock(raw,{source:'products'})?'Stokta Var':'Stokta Yok'):'';
-  const depoLbl=dNum=>!isDepotReady?.()?'—':(dNum>0?'Stokta Var':'Stokta Yok');
+      const code=depotCodeNorm(r[C4.stokKodu]??''); if(!code) continue;
+      const name=pickAideName(r)||'';
+      const num=depotStockNum(r[C4.stok]??'');
 
-  const stokDurFlag=(compelRaw,tsoftRaw,dNum,ok)=>{
-    if(!ok)return null;
-    const a=inStock(compelRaw,{source:'compel'}),b=inStock(tsoftRaw,{source:'products'});
-    const exp=isDepotReady?.()?(a||(dNum>0)):a;
-    return b===exp?false:true
-  };
+      out.has(brNorm)||out.set(brNorm,new Map());
+      const m=out.get(brNorm);
 
-  // ✅ kural: Compel EAN yoksa T-Soft EAN kırmızı olmasın
-  // return: true(=eşleşti) / false(=eşleşmedi) / null(=compel ean yok -> işaretleme yok)
-  const eanMatch=(aRaw,bRaw2,ok)=>{
-    if(!ok)return null;
+      // alt kodları birleştir: 000123 == 123
+      const alt=depotCodeAlt(code);
+      const key = alt||code;
 
-    const aList=eans(aRaw||'');
-    if(!aList.length) return null; // Compel EAN yok -> uyarı yok
-
-    const a=new Set();
-    for(const x of aList){a.add(x);const alt=eanAlt1(x);alt&&a.add(alt)}
-
-    const b=eans(bRaw2||'');
-    if(!b.length) return false;
-
-    for(const x of b){if(a.has(x)||a.has('0'+x))return true}
-    return false
-  };
-
-  const outRow=(r1,r2,how)=>{
-    const s1raw=T(r1[C1.stok]||''),s2raw=r2?T(r2[C2.stok]||''):'';
-    const sup=r2?T(r2[C2.sup]||''):'',bark=r2?T(r2[C2.barkod]||''):'';
-    const seoAbs=r2?safeUrl(normSeo(r2[C2.seo]||'')):'',clink=safeUrl(r1[C1.link]||'');
-    const depAgg=getDepotAgg?.();
-    const d=(r2&&depAgg)?depAgg(sup):{num:0,raw:''};
-
-    const em=eanMatch(r1[C1.ean]||'',bark,!!r2);
-    const stokBad=stokDurFlag(s1raw,s2raw,d.num,!!r2);
-
-    return{
-      "Sıra No":T(r1[C1.siraNo]||''),"Marka":T(r1[C1.marka]||''),
-      "Ürün Adı (Compel)":T(r1[C1.urunAdi]||''),
-      "Ürün Adı (T-Soft)":r2?T(r2[C2.urunAdi]||''):'',
-      "Ürün Kodu (Compel)":T(r1[C1.urunKodu]||''),
-      "Ürün Kodu (T-Soft)":sup,
-      "Stok (Compel)":compelLbl(s1raw),
-      "Stok (Depo)":r2?depoLbl(d.num):(isDepotReady?.()?'Stokta Yok':'—'),
-      "Stok (T-Soft)":tsoftLbl(s2raw,!!r2),
-      "EAN (Compel)":T(r1[C1.ean]||''),"EAN (T-Soft)":bark,
-
-      _s1raw:s1raw,_s2raw:s2raw,_dnum:d.num,_draw:d.raw,
-      _m:!!r2,_how:r2?how:'',_k:kNew(r1),_bn:B(r1[C1.marka]||''),_seo:seoAbs,_clink:clink,
-
-      _eanMatch:em,
-      _eanBad:(em===false),     // ✅ sadece em===false iken (compel ean varsa)
-      _stokBad:(stokBad===true)
+      if(!m.has(key)){
+        m.set(key,{code:key,name, num:num});
+      }else{
+        const it=m.get(key);
+        it.num=(Number(it.num)||0)+num;
+        // isim boşsa güncelle
+        if(!it.name && name) it.name=name;
+      }
     }
-  };
+    return out
+  }
 
-  const runMatch=()=>{
-    buildIdx();R=[];U=[];UT=[];
-    const matchedTsoftKeys=new Set();
-    const markMatchedTsoft=r2=>{
-      if(!r2)return;
-      const brN=B(r2[C2.marka]||'');if(!brN)return;
-      const ws=T(r2[C2.ws]||''),sup=T(r2[C2.sup]||'');
-      ws&&matchedTsoftKeys.add(`${brN}||WS:${ws}`);
-      sup&&matchedTsoftKeys.add(`${brN}||SUP:${sup}`);
-    };
-
-    for(const r1 of L1){
-      let r2=byEan(r1),how=r2?'EAN':'';
-      if(!r2){r2=byCompelCodeWs(r1);if(r2)how='KOD'}
-      if(!r2){r2=byMap(r1);if(r2)how='JSON'}
-      if(r2&&(how==='EAN'||how==='KOD'))markMatchedTsoft(r2);
-      const row=outRow(r1,r2,how);R.push(row);row._m||U.push(row)
+  function getBrandsNormSet(){
+    const s=new Set();
+    if(!depotReady||!L4.length) return s;
+    for(const r of L4){
+      const brRaw=T(C4.marka?(r[C4.marka]??''):(r["Marka"]??''));
+      if(isBadBrand(brRaw))continue;
+      const brNorm=brandNormFn(brRaw); brNorm && s.add(brNorm);
     }
+    return s
+  }
 
-    const seen=new Set();
-    for(const r2 of L2){
-      const brN=B(r2[C2.marka]||'');if(!brN)continue;
-      const nm=T(r2[C2.urunAdi]||'');if(!nm)continue;
-      const ws=T(r2[C2.ws]||''),sup=T(r2[C2.sup]||'');
-      if((ws&&matchedTsoftKeys.has(`${brN}||WS:${ws}`))||(sup&&matchedTsoftKeys.has(`${brN}||SUP:${sup}`)))continue;
+  function unmatchedRows({brandsNormSet,tsoftSupByBrand}={}){
+    if(!depotReady)return [];
+    const bnSet=(brandsNormSet instanceof Set)?brandsNormSet:null;
+    const out=[],seen=new Set();
+    for(const [brNorm,arr] of idxBR.entries()){
+      if(bnSet&&!bnSet.has(brNorm))continue;
+      const supSet=tsoftSupByBrand?.get?.(brNorm);
+      const sset=(supSet instanceof Set)?supSet:null;
 
-      const k=(brN+'||'+(sup||'—')+'||'+nm).toLocaleLowerCase(TR).replace(/\s+/g,' ').trim();
-      if(!k||seen.has(k))continue;seen.add(k);
-
-      UT.push({
-        _type:'tsoft',_bn:brN,"Marka":T(r2[C2.marka]||'')||brN,"T-Soft Ürün Adı":nm,
-        _seo:safeUrl(normSeo(r2[C2.seo]||'')),_sup:sup,_ws:ws,
-        _aktif:C2.aktif?parseAktif(r2[C2.aktif]):null,
-        _stokraw:C2.stok?T(r2[C2.stok]):''
-      })
+      for(const it of arr){
+        const hit=sset?(sset.has(it.code)||(it.alt?sset.has(it.alt):false)):false;
+        if(hit)continue;
+        const nm=it.name||'';if(!nm)continue;
+        const k=(brNorm+'||'+nm).toLocaleLowerCase(TR).replace(/\s+/g,' ').trim();
+        if(!k||seen.has(k))continue;seen.add(k);
+        const ag=depotAgg(it.code);
+        out.push({
+          _type:'depo',
+          _bn:brNorm,
+          "Marka":brandLabelByNorm.get(brNorm)||brNorm,
+          "Depo Ürün Adı":nm,
+          "Aide Ürün Kodu":it.code,
+          _dnum:ag?.num??0
+        })
+      }
     }
-
-    UT.sort((a,b)=>{
+    out.sort((a,b)=>{
       const ab=String(a["Marka"]||'').localeCompare(String(b["Marka"]||''),'tr',{sensitivity:'base'});
-      return ab||String(a["T-Soft Ürün Adı"]||'').localeCompare(String(b["T-Soft Ürün Adı"]||''),'tr',{sensitivity:'base'})
+      return ab||String(a["Depo Ürün Adı"]||'').localeCompare(String(b["Depo Ürün Adı"]||''),'tr',{sensitivity:'base'})
     });
+    return out
+  }
 
-    return {R,U,UT}
-  };
-
-  const manualMatch=(i,ws,sup)=>{
-    const r=U[i];if(!r)return false;
-    const r2=(ws&&idxW.get(ws))||(sup&&idxS.get(sup))||null;
-    if(!r2){alert('Ürün bulunamadı (marka filtresi sebebiyle de olabilir).');return false}
-    const b1=r._bn,b2=B(r2[C2.marka]||'');
-    if(b1&&b2&&b1!==b2&&!confirm(`Marka farklı:\n1) ${b1}\n2) ${b2}\nYine de eşleştirilsin mi?`))return false;
-
-    map.mappings=map.mappings||{};
-    map.mappings[r._k]={webServisKodu:T(r2[C2.ws]||''),tedarikciUrunKodu:T(r2[C2.sup]||''),barkod:T(r2[C2.barkod]||''),updatedAt:nowISO()};
-    map.meta=map.meta||{};map.meta.updatedAt=nowISO();
-
-    const idx=R.findIndex(x=>x._k===r._k);
-    if(idx>=0){
-      const stub={[C1.siraNo]:r["Sıra No"],[C1.marka]:r["Marka"],[C1.urunAdi]:r["Ürün Adı (Compel)"],[C1.urunKodu]:r["Ürün Kodu (Compel)"],[C1.stok]:r._s1raw||'',[C1.ean]:r["EAN (Compel)"],[C1.link]:r._clink||''};
-      R[idx]=outRow(stub,r2,'MANUAL');R[idx]._k=r._k;R[idx]._bn=b1
+  const syncDepoSpin=()=>{if(!depoSpin)return;depoSpin.style.display=((depoPaste?.value||'').trim().length>0)?'none':'block'};
+  const syncAideSaveLine=()=>{
+    const has=((depoPaste?.value||'').trim().length>0);
+    if(aideSaveLine) aideSaveLine.style.display=has?'':'none';
+    if(!has && aideSaveToday && aideSaveToday.checked){
+      aideSaveToday.checked=false;
+      aideSaveToday.dispatchEvent(new Event('change',{bubbles:true}));
     }
-    U.splice(i,1);return true
   };
 
-  const resetAll=()=>{
-    L1=[];L2=[];L2all=[];C1={};C2={};
-    idxB=new Map();idxW=new Map();idxS=new Map();
-    R=[];U=[];UT=[];map={meta:{version:1,createdAt:nowISO(),updatedAt:nowISO()},mappings:{}}
+  const setDepoUi=loaded=>{
+    const n4=$('n4');if(n4){n4.textContent=loaded?'Yüklendi':'Yükle';n4.title=loaded?`Depo yüklü (${L4.length})`:'Yükle'}
+    ui?.setChip?.('l4Chip',loaded?`Aide:${L4.length}`:'Aide:-')
   };
 
-  const loadData=({l1,c1,l2,c2,l2All})=>{L1=l1||[];L2=l2||[];L2all=l2All||[];C1=c1||{};C2=c2||{}};
-  const getResults=()=>({R,U,UT});
-  const hasData=()=>!!(L1?.length&&L2?.length);
+  const placePopover=()=>{
+    if(!depoBtn||!depoInner)return;
+    depoInner.style.position='fixed';depoInner.style.left='12px';depoInner.style.top='12px';depoInner.style.visibility='hidden';
+    requestAnimationFrame(()=>{
+      const a=depoBtn.getBoundingClientRect(),r=depoInner.getBoundingClientRect(),root=getComputedStyle(document.documentElement);
+      const M=parseFloat(root.getPropertyValue('--popM'))||12,G=parseFloat(root.getPropertyValue('--popGap'))||10;
+      let left=a.left;left=Math.max(M,Math.min(left,window.innerWidth-r.width-M));
+      let top=a.top-r.height-G;if(top<M)top=a.bottom+G;top=Math.max(M,Math.min(top,window.innerHeight-r.height-M));
+      depoInner.style.left=left+'px';depoInner.style.top=top+'px';depoInner.style.visibility='visible'
+    })
+  };
 
-  return{resetAll,loadData,runMatch,manualMatch,getResults,hasData}
+  const showDepo=()=>{if(!depoModal)return;depoModal.style.display='block';depoModal.setAttribute('aria-hidden','false');placePopover();syncDepoSpin();syncAideSaveLine();setTimeout(()=>depoPaste?.focus(),0)};
+  const hideDepo=()=>{if(!depoModal)return;depoModal.style.display='none';depoModal.setAttribute('aria-hidden','true');
+    if(depoInner){depoInner.style.position='';depoInner.style.left='';depoInner.style.top='';depoInner.style.visibility=''}
+  };
+
+  function depotFromNoisyPaste(text){
+    const FirmaDefault="Sescibaba";
+    const N=s=>!s||/^(Tümü|Sesçibaba Logo|Şirketler|Siparişler|Onay Bekleyen|Sipariş Listesi|İade Listesi|Sesçibaba Stokları|Stok Listesi|Ara|Previous|Next|E-Commerce Management.*|Showing\b.*|Marka\s+Model\s+Stok\s+Kodu.*|\d+)$/.test(s);
+    const out=[],lines=(text||'').split(/\r\n|\r|\n/);
+    for(let l of lines){
+      l=(l||'').replace(/\u00A0/g," ").trim();
+      if(N(l)||!l.includes("\t"))continue;
+      const a=l.split("\t").map(x=>x.trim()).filter(Boolean);
+      if(a.length<6)continue;
+      let m='',mo='',k='',ac='',s='',w='',f=FirmaDefault;
+      if(a.length===6){m=a[0];mo=a[1];k=a[2];ac=a[3];s=a[4];w=a[5]}
+      else{
+        m=a[0];f=a.at(-1)||FirmaDefault;w=a.at(-2)||'';s=a.at(-3)||'';
+        const mid=a.slice(1,-3);if(mid.length<3)continue;
+        mo=mid.slice(0,-2).join(" ");k=mid.at(-2)||'';ac=mid.at(-1)||''
+      }
+      const stokStr=String(s??'').trim();
+      if(!stokStr||!/^-?\d+(?:[.,]\d+)?$/.test(stokStr))continue;
+      out.push({"Marka":m,"Model":mo,"Stok Kodu":k,"Açıklama":ac,"Stok":stokStr,"Ambar":w,"Firma":f})
+    }
+    return out
+  }
+
+  function loadDepotFromText(text){
+    const raw=(text??'').toString();if(!raw.trim())return alert('Depo verisi boş.');
+    lastRawText=raw;
+
+    let ok=false;
+    try{
+      const p=parseDelimited(raw),rows=p?.rows||[];
+      if(rows.length){
+        const sample=rows[0];
+        const stokKodu=pickColumn(sample,['Stok Kodu','StokKodu','STOK KODU','Stock Code']);
+        const stok=pickColumn(sample,['Stok','Miktar','Qty','Quantity']);
+        if(stokKodu&&stok){
+          L4=rows;
+          C4={stokKodu,stok,
+            ambar:pickColumn(sample,['Ambar','Depo','Warehouse']),
+            firma:pickColumn(sample,['Firma','Şirket','Company']),
+            marka:pickColumn(sample,['Marka','MARKA','Brand','BRAND']),
+            model:pickColumn(sample,['Model','MODEL']),
+            urunAdi:pickColumn(sample,['Ürün Adı','Urun Adi','Ürün Adi','Product Name','Product']),
+            aciklama:pickColumn(sample,['Açıklama','Aciklama','Description'])
+          };
+          ok=true
+        }
+      }
+    }catch{ok=false}
+
+    if(!ok){
+      const r2=depotFromNoisyPaste(raw);
+      if(!r2.length)return alert('Depo verisi çözümlenemedi. (Tablolu kopya bekleniyordu.)');
+      L4=r2;C4={stokKodu:'Stok Kodu',stok:'Stok',ambar:'Ambar',firma:'Firma',marka:'Marka',model:'Model',aciklama:'Açıklama'};
+      ok=true
+    }
+
+    depotReady=true;buildDepotIdx();setDepoUi(true);ui?.setStatus?.('Depo yüklendi','ok');onDepotLoaded?.()
+  }
+
+  const reset=()=>{
+    depotReady=false;L4=[];C4={};idxD=new Map();idxBR=new Map();brandLabelByNorm=new Map();
+    lastRawText='';
+    depoPaste&&(depoPaste.value='');syncDepoSpin();syncAideSaveLine();setDepoUi(false)
+  };
+
+  depoBtn&&(depoBtn.onclick=showDepo);
+  depoClose&&(depoClose.onclick=hideDepo);
+
+  depoPasteBtn&&(depoPasteBtn.onclick=async()=>{
+    try{
+      if(!navigator.clipboard?.readText){alert('Panoya erişilemiyor. Sayfayı HTTPS üzerinden açın ve izin verin.');return}
+      depoPasteBtn.disabled=true;
+      const txt=await navigator.clipboard.readText();
+      if(!txt?.trim()){alert('Panoda yapıştırılacak metin yok.');return}
+      depoPaste&&(depoPaste.value=txt);syncDepoSpin();syncAideSaveLine();depoPaste?.focus()
+    }catch(e){console.error(e);alert('Pano okunamadı. Tarayıcı izinlerini kontrol edin.')}
+    finally{depoPasteBtn&&(depoPasteBtn.disabled=false)}
+  });
+
+  if(depoPaste){
+    depoPaste.addEventListener('input',()=>{syncDepoSpin();syncAideSaveLine()});
+    depoPaste.addEventListener('paste',()=>setTimeout(()=>{syncDepoSpin();syncAideSaveLine()},0))
+  }
+  depoClear&&(depoClear.onclick=()=>{depoPaste&&(depoPaste.value='');syncDepoSpin();syncAideSaveLine();depoPaste?.focus()});
+  depoLoad&&(depoLoad.onclick=()=>{loadDepotFromText(depoPaste?.value||'');hideDepo()});
+
+  addEventListener('keydown',e=>{if(e.key==='Escape'&&depoModal?.style.display!=='none')hideDepo()});
+  addEventListener('resize',()=>{depoModal?.style.display==='block'&&placePopover()});
+  addEventListener('scroll',()=>{depoModal?.style.display==='block'&&placePopover()},true);
+
+  setDepoUi(false);syncDepoSpin();syncAideSaveLine();
+
+  return{
+    reset,
+    isReady:()=>depotReady,
+    agg:depotAgg,
+    count:()=>L4.length,
+    unmatchedRows,
+    loadText:(text)=>loadDepotFromText(text),
+    getLastRaw:()=>lastRawText,
+
+    // ✅ new (Tüm Markalar modu için)
+    getBrandItemMap,
+    getBrandsNormSet
+  }
 }
