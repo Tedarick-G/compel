@@ -1,230 +1,588 @@
 <!doctype html>
 <html lang="tr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>T-Soft • Compel • Aide Karşılaştırma</title>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="https://www.sescibaba.com/Data/EditorFiles/urun_resim/G.png">
+  <title>Tedarick - G</title>
 
-    <!-- Projende varsa mevcut css dosyanı burada tut -->
-    <link rel="stylesheet" href="./style.css" />
+  <style>
+    :root{
+      color-scheme:dark;
+      --popW:min(560px,92vw);
+      --popMaxH:calc(100vh - 24px);
+      --popGap:10px;
+      --popM:12px;
+      --guideDur:1200ms;
+      --bg-main:#1E1E1E;
+      --bg-panel:#252525;
+      --bg-elevated:#2D2D2D;
+      --bg-hover:#343434;
+      --border:#3A3A3A;
+      --border-2:#4A4A4A;
+      --text:#E6E6E6;
+      --text-2:#A0A0A0;
+      --accent:#e83c61;
+      --accent-hover:#ff5579;
+      --accent-soft:rgba(232,60,97,.12);
+      --accent-glow:rgba(232,60,97,.55);
+      --link:#ff6f95;
+      --ok:#86efac;
+      --bad:#ff4d79;
+      --warn:#ff3064;
+      --unk:#fcd34d;
+      --overlay:rgba(0,0,0,.55);
+      --overlay-strong:rgba(0,0,0,.78);
+      --shadow:rgba(0,0,0,.55);
+      --thead-bg:#1b1b1b;
+      --warn-halo-1:rgba(245,245,245,.38);
+      --warn-halo-2:rgba(245,245,245,.20);
+      --stroke:#000;
+    }
+    html,body{min-height:100%;overflow-x:hidden}
+    body{
+      margin:0;min-height:100vh;display:flex;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      background:var(--bg-main);color:var(--text);
+      font-size:15px;overscroll-behavior-x:none;touch-action:pan-y;overflow-y:auto
+    }
 
-    <!-- Basit fallback (projende style.css varsa bu yine de sorun çıkarmaz) -->
-    <style>
-      :root{
-        --bg:#0f0f10; --bg-panel:#17181a;
-        --text:#f2f3f5; --text-2:#b7bbc4;
-        --border-2:#2a2d33;
-        --popM:12; --popGap:10;
-      }
-      body{margin:0;background:var(--bg);color:var(--text);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-      .app{max-width:1400px;margin:0 auto;padding:14px}
-      .topbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-      .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--bg-panel);border:1px solid var(--border-2);font-weight:800}
-      .chip.ok{border-color:rgba(134,239,172,.35)}
-      .chip.bad{border-color:rgba(232,60,97,.45)}
-      .chip.unk{border-color:rgba(250,204,21,.35)}
-      .chip.muted{opacity:.85}
-      .rowSep{height:12px}
-      .main{display:grid;grid-template-columns:360px 1fr;gap:14px;align-items:start}
-      @media (max-width: 980px){.main{grid-template-columns:1fr}}
-      .panel{background:var(--bg-panel);border:1px solid var(--border-2);border-radius:14px;padding:12px}
-      .panel h3{margin:0 0 10px;font-size:14px;letter-spacing:.02em}
-      .btn{cursor:pointer;border:1px solid var(--border-2);background:#101113;color:var(--text);border-radius:10px;padding:9px 12px;font-weight:900}
-      .btn.wip{opacity:.55;cursor:not-allowed}
-      .btnRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-      .brandList{display:flex;flex-direction:column;gap:8px;max-height:66vh;overflow:auto;padding-right:6px}
-      .brand{border:1px solid var(--border-2);border-radius:12px;padding:10px 10px;background:#121316;cursor:pointer;user-select:none}
-      .brand.sel{outline:2px solid rgba(134,239,172,.35)}
-      .bRow{display:flex;justify-content:space-between;gap:10px;align-items:center}
-      .bNm{font-weight:950}
-      .bCt{opacity:.75;font-weight:900}
-      .listTitleBar{background:var(--bg-panel);border:1px solid var(--border-2);border-radius:14px;padding:10px 12px;font-weight:950}
-      .tableWrap{background:var(--bg-panel);border:1px solid var(--border-2);border-radius:14px;overflow:auto}
-      table{border-collapse:collapse}
-      th,td{padding:8px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
-      th{font-weight:1000;text-align:left}
-      td.left{text-align:left}
-      .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999}
-      .modalInner{background:var(--bg-panel);border:1px solid var(--border-2);border-radius:14px;padding:12px;min-width:320px;max-width:min(520px,92vw)}
-      textarea{width:100%;min-height:160px;border:1px solid var(--border-2);border-radius:12px;background:#101113;color:var(--text);padding:10px;box-sizing:border-box}
-      .muted{opacity:.8}
-    </style>
-  </head>
+    .layout{flex:1;min-height:100vh;display:flex;flex-direction:column;overflow:visible}
+    .siteHeader{padding:10px 8px 0;background:var(--bg-main)}
+    .siteTitle{text-align:center;font-size:26px;font-weight:1300;letter-spacing:5.2px;padding:6px 0 8px}
 
-  <body>
-    <div class="app">
-      <div class="topbar">
-        <span id="supplierLabel" class="chip muted">1) Tedarikçi: Compel</span>
+    aside{
+      border-bottom:1px solid var(--border);
+      padding:8px;display:flex;flex-direction:column;gap:8px;
+      background:var(--bg-main);overflow:visible
+    }
+    .topRow{
+      width:100%;
+      display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;justify-content:flex-start
+    }
+    .rowSep{height:1px;background:var(--border);opacity:.7;margin:6px 2px 2px;border-radius:999px}
+    .listTitleBar{
+      text-align:center;font-weight:1300;font-size:18px;letter-spacing:.085em;opacity:.95;
+      line-height:1.25;display:flex;align-items:center;justify-content:center;
+      min-height:44px;padding:0 6px
+    }
 
-        <span id="brandStatus" class="chip muted">Hazır • Marka: 0/0</span>
-        <button id="brandHintBtn" class="btn" type="button" title="Marka listesini vurgula">Marka</button>
+    section.maincol{display:flex;flex-direction:column;gap:8px;background:var(--bg-main);padding:0 8px 10px}
 
-        <span id="stChip" class="chip ok" style="display:none">Hazır</span>
+    .controls{
+      display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;justify-content:flex-start;
+      flex:1 1 auto
+    }
 
-        <span id="l1Chip" class="chip muted">Compel:-</span>
-        <span id="l2Chip" class="chip muted">T-Soft:-</span>
-        <span id="l4Chip" class="chip muted">Aide:-</span>
-        <span id="sum" class="chip muted">✓0 • ✕0</span>
+    button,.file{
+      background:var(--bg-elevated);
+      color:var(--text);
+      border:1px solid var(--border-2);
+      border-radius:10px;
+      font-weight:900;font-size:14px;height:36px;
+      box-sizing:border-box;
+      display:flex;align-items:center;justify-content:center;
+      line-height:1
+    }
+    button{padding:0 12px;cursor:pointer}
+    button:hover,.file:hover{background:var(--bg-hover);border-color:var(--border-2)}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    button:disabled:hover{background:var(--bg-elevated);border-color:var(--border-2)}
 
-        <!-- Tedarikçi seçimi -->
-        <div id="supplierWrap" style="position:relative">
-          <button id="supplierBtn" class="btn" type="button" aria-expanded="false">Tedarikçi</button>
-          <div
-            id="supplierMenu"
-            class="panel"
-            style="position:absolute;top:44px;left:0;min-width:220px;display:block;visibility:hidden;opacity:0;transform:translateY(-4px);transition:.12s;z-index:50"
-            aria-hidden="true"
-          >
-            <div class="btnRow" style="flex-direction:column;align-items:stretch">
-              <button id="supplierCompelItem" class="btn" type="button">Compel</button>
-              <button id="supplierAllItem" class="btn" type="button">Tüm Markalar</button>
-              <button id="supplierAkalinItem" class="btn" type="button">Akalın</button>
-              <button id="supplierAddBtn" class="btn" type="button" style="opacity:.7">+</button>
+    /* ✅ Pulse hızlanarak aksın (yavaştan hızlıya) */
+    @keyframes guidePulse{
+      0%{box-shadow:0 0 0 rgba(232,60,97,0);border-color:var(--border-2)}
+      55%{box-shadow:0 0 18px var(--accent-glow);border-color:var(--accent-hover)}
+      100%{box-shadow:0 0 0 rgba(232,60,97,0);border-color:var(--border-2)}
+    }
+    .guidePulse{animation:guidePulse var(--guideDur,1200ms) cubic-bezier(.25,.0,.9,1) infinite}
+
+    .file{position:relative;justify-content:flex-start;gap:8px;padding:0 10px;user-select:none;cursor:pointer;max-width:520px;align-self:stretch}
+    .file input{display:none}
+    .fbtn{white-space:nowrap}
+    .fname{font-weight:800;opacity:.92;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+    .fname.hide{display:none!important}
+
+    .ddWrap{position:relative;display:inline-flex}
+    .ddMenu{
+      display:none;position:absolute;left:0;top:calc(100% + 6px);
+      width:100%;
+      background:var(--bg-panel);
+      border:1px solid var(--border-2);
+      border-radius:12px;padding:6px;z-index:25;
+      box-shadow:0 12px 30px rgba(0,0,0,.45);
+      max-width:min(520px,92vw)
+    }
+    .ddMenu.show{display:block}
+    .ddItem{
+      width:100%;text-align:left;background:var(--bg-main);
+      border:1px solid var(--border);border-radius:10px;padding:9px 10px;
+      font-weight:1000;font-size:14px;color:var(--text);
+      cursor:pointer;box-sizing:border-box;
+      display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:6px 0
+    }
+    .ddItem:hover{background:var(--bg-elevated);border-color:var(--border-2)}
+    .ddItem[aria-disabled="true"]{opacity:.8;cursor:default}
+    .ddEmpty{height:48px;border-radius:10px}
+
+    .ibox{
+      height:36px;min-height:36px;box-sizing:border-box;
+      display:flex;align-items:center;justify-content:flex-end;gap:6px;
+      padding:0 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-panel);
+      flex:0 0 auto;margin-left:auto;max-width:100%;
+      overflow-x:auto;overflow-y:hidden;scrollbar-width:thin
+    }
+    .chip{
+      padding:3px 9px;border:1px solid var(--border-2);border-radius:999px;background:var(--bg-main);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      font-weight:1000;font-size:14px;line-height:1.1;color:var(--text)
+    }
+    .chip.ok{color:var(--ok)}.chip.bad{color:var(--bad)}.chip.unk{color:var(--unk)}.chip.muted{opacity:.88;font-weight:900;color:var(--text-2)}
+
+    /* ✅ Arama kutusu: Listele ile infoBox arasına, ortalı, tam sığacak */
+    .brandSearchBar{
+      height:36px;
+      min-height:36px;
+      flex:1 1 320px;
+      max-width:520px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin:0 auto;
+    }
+    .brandSearchInner{
+      width:100%;
+      height:36px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:0 12px;
+      border:1px solid var(--border-2);
+      border-radius:10px;
+      background:var(--bg-panel);
+      box-sizing:border-box;
+    }
+    .brandSearchInner input{
+      width:100%;
+      height:100%;
+      background:transparent;
+      border:0;
+      outline:none;
+      color:var(--text);
+      font-weight:1100;
+      font-size:14px;
+      padding:0;
+      margin:0;
+    }
+    .brandSearchInner input::placeholder{color:var(--text-2);opacity:.85}
+    .brandSearchIcon{white-space:nowrap;opacity:.85;color:var(--text-2);font-weight:1100}
+
+    .brandList{
+      display:flex;flex-wrap:wrap;justify-content:center;gap:6px 10px;align-content:flex-start;
+      overscroll-behavior-x:none;touch-action:pan-y;align-items:center
+    }
+    .brand{
+      display:inline-flex;align-items:center;padding:7px 10px;
+      border:1px solid var(--border);border-radius:12px;background:var(--bg-panel);
+      cursor:pointer;user-select:none;width:max-content;max-width:100%
+    }
+    .brand:hover{border-color:var(--border-2)}
+    .brand.sel{background:var(--accent-soft);border-color:var(--accent-hover)}
+    @keyframes brandGlow{
+      0%{box-shadow:0 0 0 rgba(232,60,97,0);border-color:var(--border)}
+      40%{box-shadow:0 0 18px rgba(232,60,97,.45);border-color:var(--accent-hover)}
+      100%{box-shadow:0 0 0 rgba(232,60,97,0);border-color:var(--border)}
+    }
+    .brandList.glow .brand{animation:brandGlow 900ms cubic-bezier(.25,.0,.9,1)}
+    .bRow{display:flex;gap:8px;align-items:center;min-width:0;width:100%}
+    .bNm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:1100;font-size:15px;line-height:1.2;max-width:70vw}
+    .bCt{white-space:nowrap;opacity:.9;font-size:11px;color:var(--text-2)}
+
+    .panel{padding:0;display:flex;flex-direction:column;gap:6px;overflow:visible}
+    .tableWrap{
+      overflow-y:auto;overflow-x:hidden;
+      border:1px solid var(--border);border-radius:12px;background:var(--bg-panel);
+      overscroll-behavior-x:none;touch-action:pan-y
+    }
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:center;vertical-align:middle;font-size:14px;line-height:1.1}
+    td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    th{
+      position:sticky;top:0;z-index:2;background:var(--thead-bg);
+      font-weight:1100;white-space:nowrap;overflow:hidden;text-overflow:clip;padding:7px 6px
+    }
+    tbody tr:hover{background:var(--bg-elevated)}
+    .left{text-align:left!important}
+
+    td.nameCell{overflow:visible;text-overflow:clip;position:relative;z-index:1}
+    td.nameCell .nm{display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:9999px;position:relative;z-index:3}
+    td.eanCell{overflow:visible;text-overflow:clip}
+    td.seqCell{font-weight:1100}
+    td.statusBold{font-weight:1100}
+    td.flagBad{color:var(--warn)!important;font-weight:1200!important}
+    td.flagBad .cellTxt, td.flagBad .nm{
+      text-shadow:-0.8px 0 var(--stroke),0.8px 0 var(--stroke),0 -0.8px var(--stroke),0 0.8px var(--stroke),
+      0 0 2px var(--warn-halo-2),0 0 10px var(--warn-halo-1);
+    }
+    a{color:var(--link);text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    @media (max-width:980px){.fname{max-width:130px}}
+
+    .modal{position:fixed;inset:0;display:none;background:var(--overlay);z-index:600;padding:18px}
+    .modalInner{
+      width:min(980px,100%);background:var(--bg-panel);
+      border:1px solid var(--border-2);border-radius:14px;
+      box-shadow:0 12px 40px var(--shadow);
+      padding:12px;display:flex;flex-direction:column;gap:10px;
+      max-height:var(--popMaxH);overflow:auto
+    }
+    .modalInner.small{width:var(--popW)}
+    .modalBtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start;align-items:flex-start}
+
+    .tsoftText{
+      font-weight:900;font-size:14px;line-height:1.45;padding:10px 12px;
+      border:1px solid var(--border-2);border-radius:12px;background:var(--bg-main);
+      overflow:visible;position:relative
+    }
+    .miniSep{height:1px;background:var(--border);opacity:.75;border-radius:999px;margin:6px 0 8px}
+    .popInner{position:relative;padding-top:54px}
+    .popPickWrap{position:absolute;left:10px;top:10px;display:flex;gap:8px;align-items:center;justify-content:flex-start;z-index:80}
+    .popPick,.popDismiss{
+      height:32px;padding:0 10px;border-radius:10px;font-weight:1000;font-size:13px;
+      border:1px solid var(--border-2);background:var(--bg-elevated);color:var(--text)
+    }
+    .popPick:hover,.popDismiss:hover{background:var(--bg-hover);border-color:var(--accent-hover)}
+    .popLinkTitle{color:var(--text);text-decoration:none;font-weight:1100;font-size:15px;line-height:1.2;display:inline-block;white-space:nowrap;overflow:visible;text-overflow:clip;position:relative;z-index:60;pointer-events:auto}
+    .popLinkTitle:hover{text-decoration:underline}
+
+    .tsoftFlex{display:flex;gap:12px;align-items:stretch;overflow:visible}
+    .tsoftLeft{flex:1 1 auto;min-width:0;overflow:visible}
+    .tsoftRight{flex:0 0 230px;max-width:230px;display:flex;justify-content:flex-end;align-items:center;align-self:stretch;margin-left:auto;position:relative;z-index:10}
+    .tsoftThumb{width:230px;height:150px;border:0;background:transparent;border-radius:0;overflow:visible;cursor:pointer;display:block;padding:0}
+    .tsoftThumb img{width:100%;height:100%;object-fit:contain;display:block;transform:translateX(-38px) scale(1.35);transform-origin:center center}
+    .tsoftThumb{position:relative}
+    .tsoftThumb::after{
+      content:"Büyüt";position:absolute;inset:auto 10px 10px 10px;height:28px;
+      display:flex;align-items:center;justify-content:center;
+      border-radius:999px;border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.35);color:rgba(255,255,255,.72);
+      font-weight:1100;font-size:13px;letter-spacing:.02em;
+      opacity:0;transform:translateY(2px);transition:opacity 140ms ease,transform 140ms ease;
+      pointer-events:none;backdrop-filter:blur(3px)
+    }
+    .tsoftThumb:hover::after{opacity:.72;transform:translateY(0)}
+    .tsoftThumb:focus-visible::after{opacity:.85;transform:translateY(0)}
+
+    .imgOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:var(--overlay-strong);z-index:900;padding:18px}
+    .imgOverlay.show{display:flex}
+    .imgOverlay .lbWrap{transform:scale(.86);opacity:0;transition:transform 220ms ease,opacity 220ms ease;will-change:transform,opacity}
+    .imgOverlay.show .lbWrap{transform:scale(1);opacity:1}
+    .imgOverlay img{
+      width:auto;height:auto;max-width:75vw;max-height:75vh;border-radius:10px;
+      border:1px solid var(--border-2);background:var(--bg-main);
+      box-shadow:0 18px 60px rgba(0,0,0,.65);cursor:pointer
+    }
+    .imgOverlay.closing .lbWrap{transform:scale(.88);opacity:0}
+
+    .pasteWrap{position:relative}
+    .pasteHint{
+      position:absolute;left:12px;top:10px;z-index:3;pointer-events:none;
+      font-weight:1100;font-size:14px;opacity:.95;
+      padding:4px 10px;border:1px solid var(--border-2);border-radius:999px;
+      background:rgba(30,30,30,.65);box-shadow:0 10px 24px rgba(0,0,0,.35);backdrop-filter:blur(4px)
+    }
+    .modal textarea{
+      width:100%;height:220px;resize:vertical;box-sizing:border-box;
+      background:var(--bg-main);color:var(--text);
+      border:1px solid var(--border-2);border-radius:12px;padding:10px;
+      font-weight:800;font-size:14px
+    }
+
+    /* ✅ AIDE WEBP */
+    #depoSpinWrap{
+      position:absolute;left:calc(50% + 100px);top:50%;
+      transform:translate(-50%,-55%) scale(1.875);
+      width:min(180px,60%);opacity:.95;pointer-events:auto;z-index:2;
+      filter:drop-shadow(0 10px 24px rgba(0,0,0,.45));
+      border-radius:6px;cursor:pointer
+    }
+    #depoSpin{width:100%;height:auto;display:block;border-radius:6px}
+    #depoSpinWrap::after{
+      content:"Büyüt";position:absolute;left:50%;bottom:-14px;
+      transform:translateX(-50%) translateY(2px);
+      height:26px;padding:0 10px;display:flex;align-items:center;justify-content:center;
+      border-radius:999px;border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.35);color:rgba(255,255,255,.72);
+      font-weight:1100;font-size:12px;letter-spacing:.02em;
+      opacity:0;transition:opacity 140ms ease,transform 140ms ease;
+      pointer-events:none;backdrop-filter:blur(3px);white-space:nowrap
+    }
+    #depoSpinWrap:hover::after{opacity:.72;transform:translateX(-50%) translateY(0)}
+    #depoSpinWrap:focus-within::after{opacity:.85;transform:translateX(-50%) translateY(0)}
+
+    .ctrlStack{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+    .cloudPrev{
+      display:inline-flex;align-items:center;justify-content:center;
+      height:20px;padding:0 8px;border-radius:999px;
+      border:1px solid var(--border);background:var(--bg-panel);
+      font-weight:1000;font-size:12px;opacity:.9;color:var(--text-2)
+    }
+    .cloudPrev:hover{
+      border-color:var(--bad);
+      box-shadow:0 0 18px rgba(255,77,121,.45);
+      color:var(--bad)
+    }
+    .cloudBtnSmall{
+      height:32px;padding:0 10px;border-radius:10px;font-weight:1000;font-size:13px;
+      border:1px solid var(--border-2);background:var(--bg-elevated);color:var(--text)
+    }
+    .cloudBtnSmall:hover{background:var(--bg-hover);border-color:var(--accent-hover)}
+    .cloudBtnSmall.sel{background:var(--accent-soft);border-color:var(--accent-hover)}
+    .saveLine{display:flex;gap:10px;align-items:center;white-space:nowrap;overflow:visible;position:relative;z-index:999}
+    .saveLine input{transform:scale(1.15)}
+    .saveLine span{opacity:.92;font-weight:1000;white-space:nowrap}
+    .saveLine.left{justify-content:flex-start}
+    .sepL{border-left:1px solid rgba(232,60,97,.28)!important;box-shadow:inset 1px 0 0 rgba(0,0,0,.35)}
+  </style>
+</head>
+
+<body>
+  <main class="layout">
+    <header class="siteHeader">
+      <div class="siteTitle">Tedarick-G</div>
+    </header>
+
+    <aside>
+      <div class="topRow">
+        <div class="controls" id="leftControls">
+          <div class="ddWrap" id="supplierWrap">
+            <button id="supplierBtn" class="file" type="button" aria-expanded="false" title="Tedarikçi seç">
+              <span class="fbtn" id="supplierLabel">1) Tedarikçi: Compel</span>
+            </button>
+            <div class="ddMenu" id="supplierMenu" role="menu" aria-hidden="true">
+              <button type="button" class="ddItem" id="supplierCompelItem">Compel</button>
+              <button type="button" class="ddItem" id="supplierAllItem">Tüm Markalar</button>
+              <button type="button" class="ddItem" id="supplierAkalinItem">Akalın</button>
+              <button type="button" class="ddItem" id="supplierAddBtn">Tedarikçi ekle</button>
+              <div class="ddEmpty"></div>
             </div>
+          </div>
+
+          <button id="brandHintBtn" class="file" type="button" title="Marka kutularını işaretle">
+            <span class="fbtn">2) Marka Seç</span>
+          </button>
+
+          <div class="ctrlStack" id="tsoftStack">
+            <span class="cloudPrev" id="tsoftPrev" style="display:none"></span>
+            <label class="file" id="sescBox" title="T-Soft Stok (CSV)">
+              <span class="fbtn">3) T-Soft Stok</span>
+              <span class="fname hide" id="n2">Yükle</span>
+              <input id="f2" type="file" accept=".csv,text/csv">
+            </label>
+          </div>
+
+          <div class="ctrlStack" id="aideStack">
+            <span class="cloudPrev" id="aidePrev" style="display:none"></span>
+            <button id="depoBtn" class="file" type="button" title="Aide Stok">
+              <span class="fbtn">4) Aide Stok</span>
+              <span class="fname hide" id="n4">Yükle</span>
+            </button>
+          </div>
+
+          <button id="go" title="Listele">Listele</button>
+          <button id="dl1" disabled>CSV Çıktı</button>
+        </div>
+
+        <!-- ✅ Arama kutusu: Listele butonu ile infoBox arasına -->
+        <div class="brandSearchBar" id="brandSearchBar" style="display:none" aria-label="Marka Ara">
+          <div class="brandSearchInner">
+            <input id="brandSearchInput" placeholder="Marka Ara" autocomplete="off" />
+            <span class="brandSearchIcon">(🔎)</span>
           </div>
         </div>
 
-        <script>
-          // Menü görünürlük animasyonu için küçük helper (app.js zaten class show kullanıyor)
-          (function(){
-            const menu=document.getElementById('supplierMenu');
-            if(!menu) return;
-            const obs=new MutationObserver(()=>{
-              const show=menu.classList.contains('show');
-              menu.style.visibility=show?'visible':'hidden';
-              menu.style.opacity=show?'1':'0';
-              menu.style.transform=show?'translateY(0)':'translateY(-4px)';
-            });
-            obs.observe(menu,{attributes:true,attributeFilter:['class']});
-          })();
-        </script>
+        <div class="ibox" id="infoBox">
+          <span class="chip muted" id="brandStatus">Markalar yükleniyor…</span>
+          <span class="chip ok" id="stChip" style="display:none"></span>
+          <span class="chip" id="l1Chip">Compel:-</span>
+          <span class="chip" id="l2Chip">T-Soft:-</span>
+          <span class="chip" id="l4Chip">Aide:-</span>
+          <span class="chip muted" id="sum">✓0 • ✕0</span>
+        </div>
       </div>
 
       <div class="rowSep" aria-hidden="true"></div>
+      <div class="brandList" id="brandList"></div>
+    </aside>
 
-      <div class="main">
-        <!-- SOL PANEL -->
-        <aside class="panel">
-          <h3>Markalar</h3>
+    <section class="maincol">
+      <section class="panel results">
+        <div class="tableWrap"><table id="t1"></table></div>
+      </section>
 
-          <div id="leftControls" class="btnRow">
-            <!-- Listele / Temizle -->
-            <button id="go" class="btn" type="button" title="Listele">Listele</button>
+      <!-- Eski unmatched (Compel modu) -->
+      <section class="panel unmatched" id="unmatchedSection" style="display:none">
+        <div class="rowSep" aria-hidden="true"></div>
+        <div class="listTitleBar" id="unmatchedTitle">Eşleşmeyen Ürünler Listesi</div>
+        <div class="tableWrap"><table id="t2"></table></div>
+      </section>
 
-            <!-- ✅ CSV Çıktı butonu kaldırıldı (dl1 yok) -->
+      <!-- Yeni split unmatched (Tüm Markalar modu) -->
+      <section class="panel unmatched" id="unmatchedSplitSection" style="display:none">
+        <div class="rowSep" aria-hidden="true"></div>
+        <div class="listTitleBar" id="unmatchedSplitTitle">Eşleşmeyen Ürünler</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="tableWrap"><table id="t2L"></table></div>
+          <div class="tableWrap"><table id="t2R"></table></div>
+        </div>
+      </section>
+    </section>
+  </main>
 
-            <!-- T-Soft yükleme alanı -->
-            <div id="sescBox" class="btn" style="display:inline-flex;align-items:center;gap:10px" role="button" tabindex="0" title="T-Soft Stok CSV Seç">
-              <span class="muted">T-Soft</span>
-              <span id="n2" class="chip muted" style="padding:4px 10px">Yükle</span>
-              <input id="f2" type="file" accept=".csv,.txt" style="display:none" />
-            </div>
+  <div class="imgOverlay" id="imgOverlay" aria-hidden="true">
+    <div class="lbWrap"><img id="imgOverlayImg" alt="Önizleme"></div>
+  </div>
 
-            <!-- Günlük butonları -->
-            <button id="tsoftDailyBtn" class="btn" type="button" disabled>—</button>
-            <button id="aideDailyBtn" class="btn" type="button" disabled>—</button>
-
-            <!-- Aide / Depo -->
-            <button id="depoBtn" class="btn" type="button" title="Aide verisi yükle/yapıştır">Aide</button>
-          </div>
-
-          <div class="rowSep" aria-hidden="true"></div>
-
-          <div id="brandList" class="brandList" aria-label="Marka Listesi"></div>
-        </aside>
-
-        <!-- SAĞ PANEL -->
-        <section class="maincol">
-          <!-- app.js buraya listTitle ve ayraç ekliyor -->
-          <div id="infoBox" class="panel">
-            <div class="muted">
-              Marka seç → T-Soft yükle (veya günlük seç) → Aide yükle (veya günlük seç) → Listele
-            </div>
-          </div>
-
-          <div class="rowSep" aria-hidden="true"></div>
-
-          <div class="tableWrap">
-            <table id="t1" aria-label="Eşleşen Ürünler"></table>
-          </div>
-
-          <div class="rowSep" aria-hidden="true"></div>
-
-          <section id="unmatchedSection" class="panel" style="display:none">
-            <div id="unmatchedTitle" class="listTitleBar" style="margin-bottom:10px">Eşleşmeyen Ürünler</div>
-            <div class="tableWrap">
-              <table id="t2" aria-label="Eşleşmeyen Ürünler"></table>
-            </div>
-          </section>
-
-          <section id="unmatchedSplitSection" class="panel" style="display:none">
-            <div id="unmatchedSplitTitle" class="listTitleBar" style="margin-bottom:10px">Eşleşmeyen Ürünler</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-              <div class="tableWrap"><table id="t2L" aria-label="T-Soft unmatched"></table></div>
-              <div class="tableWrap"><table id="t2R" aria-label="Aide unmatched"></table></div>
-            </div>
-          </section>
-        </section>
+  <!-- TSOFT MODAL -->
+  <div class="modal" id="tsoftModal" aria-hidden="true">
+    <div class="modalInner small popInner" id="tsoftInner">
+      <div class="popPickWrap">
+        <button id="tsoftDailyBtn" class="cloudBtnSmall" type="button" disabled title="Bugünün verisini seç">Bugün —</button>
+        <button id="tsoftClose" class="popPick" type="button">CSV Yükle</button>
+        <button id="tsoftDismiss" class="popDismiss" type="button">Kapat</button>
       </div>
-    </div>
 
-    <!-- T-Soft seçim modalı -->
-    <div id="tsoftModal" class="modal" aria-hidden="true">
-      <div id="tsoftInner" class="modalInner">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-          <div style="font-weight:950">T-Soft Dosyası</div>
-          <button id="tsoftDismiss" class="btn" type="button">Kapat</button>
-        </div>
+      <div class="tsoftText">
+        <div class="tsoftFlex">
+          <div class="tsoftLeft">
+            <a class="popLinkTitle"
+               href="https://sescibaba-com.tsoftpanel.com/frame/app-store/app.csvexport/products/export"
+               target="_blank" rel="noopener" title="Yeni sekmede aç">
+              T-Soft &gt; Ürünler &gt; Excel Ürün Sihirbazı &gt; Exel Ürün Dışa Aktar
+            </a>
 
-        <div class="rowSep" aria-hidden="true"></div>
+            <div class="miniSep" aria-hidden="true"></div>
+            <div class="tsoftCols">
+              →Web Servis Kodu<br>
+              →Ürün Adı<br>
+              →Tedarikçi Ürün Kodu<br>
+              →Barkod<br>
+              →Stok<br>
+              →Aktif<br>
+              →Marka<br>
+              →SEO Link
+            </div>
 
-        <div class="btnRow">
-          <button id="tsoftClose" class="btn" type="button">Dosya Seç</button>
-          <label class="chip muted" style="gap:8px">
-            <input id="tsoftSaveToday" type="checkbox" />
-            Bugün için kaydet
-          </label>
-          <span id="tsoftPrev" class="chip muted" style="display:none"></span>
-        </div>
-      </div>
-    </div>
+            <div class="miniSep" aria-hidden="true"></div>
 
-    <!-- Aide / Depo modalı -->
-    <div id="depoModal" class="modal" aria-hidden="true">
-      <div id="depoInner" class="modalInner">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-          <div style="font-weight:950">Aide (Depo) Verisi</div>
-          <button id="depoClose" class="btn" type="button">Kapat</button>
-        </div>
-
-        <div class="rowSep" aria-hidden="true"></div>
-
-        <div id="depoSpin" class="muted" style="margin-bottom:8px">Tablolu metni buraya yapıştırın…</div>
-
-        <textarea id="depoPaste" placeholder="Tablolu kopya (TSV/CSV) yapıştır…"></textarea>
-
-        <div class="rowSep" aria-hidden="true"></div>
-
-        <div class="btnRow" style="justify-content:space-between">
-          <div class="btnRow">
-            <button id="depoPasteBtn" class="btn" type="button">Panodan Yapıştır</button>
-            <button id="depoClear" class="btn" type="button">Temizle</button>
-          </div>
-
-          <div class="btnRow">
-            <span id="aideSaveLine" class="chip muted" style="display:none">Kaydet</span>
-            <label class="chip muted" style="gap:8px">
-              <input id="aideSaveToday" type="checkbox" />
-              Bugün için kaydet
+            <label class="saveLine left" title="Yetkili için: Bugünün verisi olarak kaydeder (overwrite)">
+              <input id="tsoftSaveToday" type="checkbox">
+              <span>Bugünün verisi olarak kaydet (Yetkili)</span>
             </label>
-            <button id="depoLoad" class="btn" type="button">Yükle</button>
-            <span id="aidePrev" class="chip muted" style="display:none"></span>
+          </div>
+
+          <div class="tsoftRight" aria-label="Yardım görseli">
+            <button class="tsoftThumb" id="tsoftThumb" type="button" title="Büyüt">
+              <img id="tsoftThumbImg" src="https://robot-workstation.github.io/tedarick/media/t-soft_destek.webp"
+                   alt="T-Soft destek görseli" loading="lazy">
+            </button>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Uygulama -->
-    <script type="module" src="./js/app.js"></script>
-  </body>
+  <!-- AIDE MODAL -->
+  <div class="modal" id="depoModal" aria-hidden="true">
+    <div class="modalInner small" id="depoInner">
+      <div class="modalBtns">
+        <button id="aideDailyBtn" class="cloudBtnSmall" style="height:36px" type="button" disabled title="Bugünün verisini seç">Bugün —</button>
+        <button id="depoLoad" type="button">Yükle</button>
+        <button id="depoPasteBtn" type="button">Yapıştır</button>
+        <button id="depoClear" type="button">Temizle</button>
+        <button id="depoClose" type="button">Kapat</button>
+      </div>
+
+      <div class="pasteWrap">
+        <div class="pasteHint">Buraya Yapıştır</div>
+        <textarea id="depoPaste"></textarea>
+
+        <div style="margin-top:10px">
+          <label class="saveLine left" id="aideSaveLine" style="display:none" title="Yetkili için: Bugünün verisi olarak kaydeder (overwrite)">
+            <input id="aideSaveToday" type="checkbox">
+            <span>Bugünün verisi olarak kaydet (Yetkili)</span>
+          </label>
+        </div>
+
+        <div id="depoSpinWrap" tabindex="0" role="button" aria-label="Büyüt" title="Büyüt">
+          <img id="depoSpin" src="https://www.sescibaba.com/Data/EditorFiles/urun_resim/Aidestek.webp" alt="">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="wsCodes"></datalist>
+  <datalist id="supCodes"></datalist>
+
+  <script type="module">
+    (() => {
+      const b = document.getElementById('tsoftThumb'),
+            i = document.getElementById('tsoftThumbImg'),
+            o = document.getElementById('imgOverlay'),
+            oi = document.getElementById('imgOverlayImg');
+      if(!b||!i||!o||!oi) return;
+      let t=null;
+      const open=src=>{
+        t && (clearTimeout(t), t=null);
+        o.classList.remove('closing');
+        oi.src=src;
+        o.classList.add('show');
+        o.setAttribute('aria-hidden','false');
+      };
+      const close=()=>{
+        o.classList.add('closing');
+        t=setTimeout(()=>{
+          o.classList.remove('show');
+          o.classList.remove('closing');
+          o.setAttribute('aria-hidden','true');
+          oi.removeAttribute('src');
+          t=null;
+        },220);
+      };
+      b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();open(i.currentSrc||i.src)});
+      o.addEventListener('click',e=>{e.preventDefault();close()});
+      addEventListener('keydown',e=>{e.key==='Escape' && o.classList.contains('show') && close()});
+      const m=document.getElementById('tsoftModal'), d=document.getElementById('tsoftDismiss');
+      m && d && d.addEventListener('click',e=>{
+        e.preventDefault();e.stopPropagation();
+        m.style.display='none';
+        m.setAttribute('aria-hidden','true');
+      });
+    })();
+  </script>
+
+  <script type="module">
+    (() => {
+      const wrap=document.getElementById('depoSpinWrap'),
+            img=document.getElementById('depoSpin'),
+            o=document.getElementById('imgOverlay'),
+            oi=document.getElementById('imgOverlayImg');
+      if(!wrap||!img||!o||!oi) return;
+      const open=()=>{
+        o.classList.remove('closing');
+        oi.src=img.currentSrc||img.src;
+        o.classList.add('show');
+        o.setAttribute('aria-hidden','false');
+      };
+      wrap.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();open()});
+      wrap.addEventListener('keydown',e=>{
+        if(e.key!=='Enter' && e.key!==' ') return;
+        e.preventDefault();open();
+      });
+    })();
+  </script>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
 </html>
