@@ -400,11 +400,9 @@ function buildCanonicalBrandList() {
 // =========================
 let guideStep = "brand";
 
-// ✅ Pulse tempo: “yavaştan hızlıya” (algısal hızlanma) için keyframe override
 (() => {
   const st = document.createElement("style");
   st.textContent = `
-    /* override: guidePulse daha "hızlanan" hissi verir */
     @keyframes guidePulse{
       0%{box-shadow:0 0 0 rgba(232,60,97,0);border-color:var(--border-2)}
       55%{box-shadow:0 0 0 rgba(232,60,97,0);border-color:var(--border-2)}
@@ -445,7 +443,6 @@ const updateGuideUI = () => {
     : guideStep === "list" && apply($("go"));
 };
 
-// ✅ Guide akışını state’e göre tek yerden yönet
 function hasTsoftReady() {
   const file = $("f2")?.files?.[0];
   return !!file || !!String(DAILY_SELECTED?.tsoft || "").trim();
@@ -456,25 +453,18 @@ function hasAideReady() {
 function updateGuideFromState() {
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) return;
 
-  // marka seçimi yoksa
   if (!SELECTED.size) {
     setGuideStep("brand");
     return;
   }
-
-  // ✅ T-Soft pulse: herhangi bir CSV seçilince veya eski tarihli veri seçilince dursun
   if (!hasTsoftReady()) {
     setGuideStep("tsoft");
     return;
   }
-
-  // ✅ sonra Aide pulse
   if (!hasAideReady()) {
     setGuideStep("aide");
     return;
   }
-
-  // ✅ sonra Listele pulse; Listele’ye tıklanınca done oluyor (handleGo içinde)
   setGuideStep("list");
 }
 
@@ -509,11 +499,10 @@ const ui = { setChip, setStatus };
 
 const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
 
-// ✅ Marka Ara bar (ALL modunda topRow’a taşınacak) + CSS
+// ✅ Marka Ara bar + CSS (ALL + COMPEL)
 (() => {
   const st = document.createElement("style");
   st.textContent = `
-    /* Marka Ara bar (ALL modunda topRow’da) */
     #brandSearchBar{
       height:36px;
       box-sizing:border-box;
@@ -525,11 +514,10 @@ const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
       background:var(--bg-panel);
       padding:0 10px;
 
-      /* ✅ ÖNEMLİ: artık daralmasın, JS ile ölçülüp px width verilecek */
-      flex:0 0 auto;     /* içerik kadar + JS width */
+      flex:0 0 auto;
       width:auto;
-      max-width:520px;   /* üst limit */
-      min-width:0;       /* min-width'ü JS set edecek */
+      max-width:520px;
+      min-width:0;
       margin-left:auto;
       margin-right:auto;
     }
@@ -544,14 +532,13 @@ const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
       font-size:15px;
       padding:0;
       margin:0;
-      text-align:center; /* ortalı */
+      text-align:center;
       min-width:0;
     }
     #brandSearchInputTop::placeholder{
       color:var(--text-2);
       opacity:.85;
     }
-    /* Toggle satırı */
     .brandToggle{
       display:flex;
       justify-content:center;
@@ -702,7 +689,6 @@ function paintDailyUI() {
     aPrev.title = "";
   }
 
-  // ✅ daily seçimleri guide akışını etkiler
   updateGuideFromState();
 }
 
@@ -768,7 +754,7 @@ $("aideDailyBtn")?.addEventListener("click", (e) => {
 });
 
 // =========================
-// Brand UI + canlı arama + 3 satır daralt/aç (SADECE ALL)
+// Brand UI + canlı arama + 3 satır daralt/aç (SADECE ALL toggle)
 // =========================
 let BRANDS = [];
 let SELECTED = new Set();
@@ -777,7 +763,7 @@ let hasEverListed = false;
 let brandFilterText = "";
 let brandListExpanded = false;
 
-// ✅ top search bar (ALL modunda)
+// ✅ top search bar (ALL + COMPEL)
 let brandSearchBarEl = null;
 function ensureBrandSearchBar() {
   if (brandSearchBarEl) return brandSearchBarEl;
@@ -790,7 +776,6 @@ function ensureBrandSearchBar() {
   const wrap = document.createElement("div");
   wrap.id = "brandSearchBar";
 
-  // Listele ile infoBox arasına
   try {
     const controls = $("leftControls");
     if (controls && controls.contains(goBtn)) {
@@ -808,15 +793,12 @@ function ensureBrandSearchBar() {
 
   const inp = wrap.querySelector("#brandSearchInputTop");
 
-  // ✅ “Marka Ara” kadar daralsın ama daha fazla daralmasın; yazı uzarsa genişlesin
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
   const getFont = () => {
     if (!inp) return "15px system-ui";
     const cs = getComputedStyle(inp);
-    // font shorthand: "font-style font-variant font-weight font-size/line-height font-family"
-    // basit ve sağlam: size + family + weight
     const fw = cs.fontWeight || "1100";
     const fs = cs.fontSize || "15px";
     const ff = cs.fontFamily || "system-ui";
@@ -831,7 +813,6 @@ function ensureBrandSearchBar() {
   };
 
   const getHPaddingPx = () => {
-    // wrap padding (0 10px) + input iç padding 0 ama güvenli olsun
     const wcs = getComputedStyle(wrap);
     const ics = inp ? getComputedStyle(inp) : null;
     const pWrap =
@@ -839,7 +820,6 @@ function ensureBrandSearchBar() {
     const pInp = ics
       ? (parseFloat(ics.paddingLeft) || 0) + (parseFloat(ics.paddingRight) || 0)
       : 0;
-    // küçük bir “nefes” payı
     return Math.ceil(pWrap + pInp + 18);
   };
 
@@ -849,28 +829,20 @@ function ensureBrandSearchBar() {
     const ph = inp?.getAttribute("placeholder") || "Marka Ara";
     const pad = getHPaddingPx();
     MIN_W = Math.max(0, measureTextPx(ph) + pad);
-    // ilk hal: placeholder kadar
     if (MIN_W) {
       wrap.style.minWidth = `${MIN_W}px`;
-      // boşsa width placeholder olsun
       if (!String(inp?.value || "").trim()) wrap.style.width = `${MIN_W}px`;
     }
   };
 
   const updateWidth = () => {
     if (!inp) return;
-
-    // max: 520, ama ekrana göre de taşmasın
     const maxW = Math.min(520, Math.max(220, window.innerWidth - 40));
-
     const val = String(inp.value || "");
     const txt = val.trim() ? val : (inp.getAttribute("placeholder") || "Marka Ara");
-
     const pad = getHPaddingPx();
     const w = Math.max(MIN_W || 0, measureTextPx(txt) + pad);
-
     const finalW = Math.max(MIN_W || 0, Math.min(maxW, w));
-
     wrap.style.minWidth = `${MIN_W || 0}px`;
     wrap.style.maxWidth = `${maxW}px`;
     wrap.style.width = `${finalW}px`;
@@ -879,8 +851,8 @@ function ensureBrandSearchBar() {
   if (inp) {
     inp.addEventListener("input", () => {
       brandFilterText = String(inp.value || "");
-      updateWidth();     // ✅ yazdıkça büyüsün; küçülme placeholder altına inmesin
-      renderBrands();    // ✅ input DOM’u değişmediği için odak kaybolmaz
+      updateWidth();
+      renderBrands();
     });
     inp.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
@@ -893,11 +865,9 @@ function ensureBrandSearchBar() {
     });
   }
 
-  // ilk hesap
   recomputeMin();
   updateWidth();
 
-  // resize olunca tekrar ölç
   addEventListener("resize", () => {
     recomputeMin();
     updateWidth();
@@ -911,17 +881,18 @@ function showHideBrandSearchBar() {
   const wrap = ensureBrandSearchBar();
   if (!wrap) return;
 
-  const show = ACTIVE_SUPPLIER === SUPPLIERS.ALL;
+  // ✅ COMPEL + ALL görünür, AKALIN gizli
+  const show = ACTIVE_SUPPLIER !== SUPPLIERS.AKALIN;
   wrap.classList.toggle("show", !!show);
 
+  // AKALIN'a geçince temizle
   if (!show) {
     const inp = wrap.querySelector("#brandSearchInputTop");
-    if (inp && (brandFilterText || inp.value)) {
+    if (inp) {
       brandFilterText = "";
       inp.value = "";
-      // width reset
+      // placeholder genişliğine reset
       try {
-        // placeholder min width
         const ph = inp.getAttribute("placeholder") || "Marka Ara";
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
@@ -1021,13 +992,11 @@ const renderBrands = () => {
   updateGuideFromState();
   applySupplierUi();
 
-  // ✅ ALL modunda input genişliği (render sırasında da doğru kalsın)
-  if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) {
+  // ✅ input genişliği sabit kalsın (DOM reflow sonrası)
+  if (ACTIVE_SUPPLIER !== SUPPLIERS.AKALIN) {
     const bar = ensureBrandSearchBar();
     const inp = bar?.querySelector?.("#brandSearchInputTop");
-    // input varsa: değer değişmedi ama DOM reflow sonrası width sabit kalsın
     if (bar && inp) {
-      // küçük bir “re-apply”: placeholder min ve current value'a göre width
       try {
         inp.dispatchEvent(new Event("input", { bubbles: false }));
       } catch {}
@@ -1036,7 +1005,9 @@ const renderBrands = () => {
 };
 
 function toggleBrand(id, el) {
-  SELECTED.has(id) ? (SELECTED.delete(id), el.classList.remove("sel")) : (SELECTED.add(id), el.classList.add("sel"));
+  SELECTED.has(id)
+    ? (SELECTED.delete(id), el.classList.remove("sel"))
+    : (SELECTED.add(id), el.classList.add("sel"));
   updateBrandChip();
   updateGuideFromState();
   applySupplierUi();
@@ -1051,7 +1022,6 @@ function toggleAllVisible() {
   renderBrands();
 }
 
-// click / keydown delegation
 $("brandList")?.addEventListener("click", (e) => {
   const el = e.target.closest(".brand, .brandToggle");
   if (!el) return;
@@ -1241,15 +1211,14 @@ function applySupplierUi() {
     }
   }
 
-  // CSV Çıktı gizli
   const dl1 = $("dl1");
   dl1 && (dl1.style.display = "none");
 
-  // ✅ Tüm Markalar modunda: infoBox’ta Compel chip görünmesin
+  // ✅ Compel chip: ALL'de gizli
   const l1 = $("l1Chip");
   if (l1) l1.style.display = ACTIVE_SUPPLIER === SUPPLIERS.ALL ? "none" : "";
 
-  // ✅ Search bar yerleşimi
+  // ✅ Search bar: COMPEL + ALL açık
   showHideBrandSearchBar();
 
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
@@ -1848,7 +1817,6 @@ function parseTsoftRowsToMap(rows) {
   return out;
 }
 
-// ✅ marka adetlerini güncelle (T-Soft ∪ Aide union code sayısı)
 function updateBrandCountsFromMaps({ tsoftMap, aideMap }) {
   const countByBrandNorm = new Map();
   const addCodes = (brNorm, codes) => {
@@ -2069,7 +2037,7 @@ function resetAll() {
   brandFilterText = "";
   brandListExpanded = false;
 
-  // ✅ ALL search input temizle
+  // ✅ arama input temizle
   const bar = ensureBrandSearchBar();
   const inp = bar?.querySelector?.("#brandSearchInputTop");
   if (inp) inp.value = "";
