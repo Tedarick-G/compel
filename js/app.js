@@ -754,7 +754,7 @@ $("aideDailyBtn")?.addEventListener("click", (e) => {
 });
 
 // =========================
-// Brand UI + canlı arama + 3 satır daralt/aç (SADECE ALL toggle)
+// Brand UI + canlı arama + daralt/aç
 // =========================
 let BRANDS = [];
 let SELECTED = new Set();
@@ -881,17 +881,14 @@ function showHideBrandSearchBar() {
   const wrap = ensureBrandSearchBar();
   if (!wrap) return;
 
-  // ✅ COMPEL + ALL görünür, AKALIN gizli
-  const show = ACTIVE_SUPPLIER !== SUPPLIERS.AKALIN;
+  const show = ACTIVE_SUPPLIER !== SUPPLIERS.AKALIN; // COMPEL + ALL açık
   wrap.classList.toggle("show", !!show);
 
-  // AKALIN'a geçince temizle
   if (!show) {
     const inp = wrap.querySelector("#brandSearchInputTop");
     if (inp) {
       brandFilterText = "";
       inp.value = "";
-      // placeholder genişliğine reset
       try {
         const ph = inp.getAttribute("placeholder") || "Marka Ara";
         const canvas = document.createElement("canvas");
@@ -921,10 +918,14 @@ function getVisibleBrands() {
   return BRANDS.filter((b) => String(b.name || "").toLocaleLowerCase(TR).includes(q));
 }
 
+// ✅ COMPEL: full
+// ✅ ALL: default 20 (arama yoksa), toggle ile aç
 function computeVisibleRowsLimit() {
   if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) return 9999;
-  if (String(brandFilterText || "").trim()) return 9999;
-  return brandListExpanded ? 9999 : 3;
+
+  // ALL
+  if (String(brandFilterText || "").trim()) return 9999; // arama varsa limit kalksın
+  return brandListExpanded ? 9999 : 20; // ✅ 3 -> 20
 }
 
 const renderBrands = () => {
@@ -974,8 +975,9 @@ const renderBrands = () => {
     brandsWrap.appendChild(d);
   });
 
+  // ✅ Toggle: sadece ALL modunda, arama yoksa, 20’den fazlaysa
   const shouldShowToggle =
-    ACTIVE_SUPPLIER === SUPPLIERS.ALL && !isSearching && vis.length > 3;
+    ACTIVE_SUPPLIER === SUPPLIERS.ALL && !isSearching && vis.length > 20;
 
   if (shouldShowToggle) {
     const tgl = document.createElement("div");
@@ -992,7 +994,6 @@ const renderBrands = () => {
   updateGuideFromState();
   applySupplierUi();
 
-  // ✅ input genişliği sabit kalsın (DOM reflow sonrası)
   if (ACTIVE_SUPPLIER !== SUPPLIERS.AKALIN) {
     const bar = ensureBrandSearchBar();
     const inp = bar?.querySelector?.("#brandSearchInputTop");
@@ -1064,16 +1065,6 @@ $("brandList")?.addEventListener("keydown", (e) => {
     Number.isFinite(n) && toggleBrand(n, el);
   }
 });
-
-const pulseBrands = () => {
-  const list = $("brandList");
-  if (!list) return;
-  list.classList.remove("glow");
-  void list.offsetWidth;
-  list.classList.add("glow");
-  setTimeout(() => list.classList.remove("glow"), 950);
-};
-$("brandHintBtn")?.addEventListener("click", pulseBrands);
 
 // =========================
 // Supplier dropdown
@@ -1214,11 +1205,9 @@ function applySupplierUi() {
   const dl1 = $("dl1");
   dl1 && (dl1.style.display = "none");
 
-  // ✅ Compel chip: ALL'de gizli
   const l1 = $("l1Chip");
   if (l1) l1.style.display = ACTIVE_SUPPLIER === SUPPLIERS.ALL ? "none" : "";
 
-  // ✅ Search bar: COMPEL + ALL açık
   showHideBrandSearchBar();
 
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
@@ -1548,7 +1537,6 @@ const bind = (inId, outId, empty) => {
 };
 bind("f2", "n2", "Yükle");
 
-// aide save checkbox
 $("aideSaveToday")?.addEventListener("change", (e) => {
   const cb = e.target;
   cb.checked && !ensureSaveCredOrCancel() && (cb.checked = false);
@@ -2037,7 +2025,6 @@ function resetAll() {
   brandFilterText = "";
   brandListExpanded = false;
 
-  // ✅ arama input temizle
   const bar = ensureBrandSearchBar();
   const inp = bar?.querySelector?.("#brandSearchInputTop");
   if (inp) inp.value = "";
