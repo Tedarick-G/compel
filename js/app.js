@@ -71,11 +71,9 @@ function toTitleCaseTR(s) {
 
 function buildCanonicalBrandList() {
   const pref = new Map();
-  const _tsoftSet = new Set(
-    TSOFT_BRAND_SEED.map((x) => String(x || "").trim()).filter(Boolean)
-  );
+  const tsoftSet = new Set(TSOFT_BRAND_SEED.map((x) => String(x || "").trim()).filter(Boolean));
 
-  const add = (name, priority) => {
+  const add = (name, pr) => {
     const nm = String(name || "").trim();
     if (!nm) return;
     const k = normBrand(nm);
@@ -83,8 +81,8 @@ function buildCanonicalBrandList() {
     if (!pref.has(k)) pref.set(k, nm);
     else {
       const cur = pref.get(k);
-      const curPr = cur && _tsoftSet.has(cur) ? 2 : 1;
-      if (priority > curPr) pref.set(k, nm);
+      const curPr = cur && tsoftSet.has(cur) ? 2 : 1;
+      if (pr > curPr) pref.set(k, nm);
     }
   };
 
@@ -93,30 +91,23 @@ function buildCanonicalBrandList() {
 
   return [...pref.entries()]
     .map(([brNorm, name]) => ({ id: brNorm, slug: brNorm, name, count: "—" }))
-    .sort((a, b) =>
-      String(a.name).localeCompare(String(b.name), "tr", { sensitivity: "base" })
-    );
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), "tr", { sensitivity: "base" }));
 }
 
 let guideStep = "brand";
 const GUIDE_DUR = { brand: 1500, tsoft: 1250, aide: 1050, list: 900 };
-
 const clearGuidePulse = () =>
   ["brandHintBtn", "sescBox", "depoBtn", "go", "tsoftDailyBtn", "aideDailyBtn"].forEach((id) => {
     const el = $(id);
     el && (el.classList.remove("guidePulse"), el.style.removeProperty("--guideDur"));
   });
-
 const setGuideStep = (s) => ((guideStep = s || "done"), updateGuideUI());
-
 const updateGuideUI = () => {
   clearGuidePulse();
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN || guideStep === "done") return;
-
   const dur = GUIDE_DUR[guideStep] || 1200;
   const apply = (el) =>
     el && (el.style.setProperty("--guideDur", `${dur}ms`), el.classList.add("guidePulse"));
-
   if (guideStep === "brand") apply($("brandHintBtn"));
   else if (guideStep === "tsoft") apply($("sescBox"));
   else if (guideStep === "aide") apply($("depoBtn"));
@@ -135,7 +126,6 @@ const setChip = (id, t, cls = "") => {
 const setStatus = (t, k = "ok") => {
   const st = $("stChip");
   if (!st) return;
-
   const msg = String(t ?? "").trim();
   if (!msg || msg.toLocaleLowerCase(TR) === "hazır") {
     st.style.display = "none";
@@ -149,94 +139,36 @@ const setStatus = (t, k = "ok") => {
 };
 
 const ui = { setChip, setStatus };
-
 const INFO_HIDE_IDS = ["brandStatus", "l1Chip", "l2Chip", "l4Chip", "sum"];
 
-/**
- * ✅ Marka arama kutusu:
- * - boşken placeholder ("Marka Ara") sığacak kadar dar,
- * - yazınca asla daha kısa olmaz,
- * - uzun yazınca 520px'e kadar uzar.
- */
 const BRAND_SEARCH_PLACEHOLDER = "Marka Ara";
 const BRAND_SEARCH_MIN_CH = Math.max(9, BRAND_SEARCH_PLACEHOLDER.length + 1);
 const BRAND_SEARCH_MAX_CH = 48;
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
+let brandSearchSlotEl = null;
+let brandSearchInputEl = null;
+
 function syncBrandSearchSize() {
   if (!brandSearchInputEl) return;
   const v = String(brandSearchInputEl.value || "");
-  const min = BRAND_SEARCH_MIN_CH;
   const want = v ? (v.length + 1) : BRAND_SEARCH_PLACEHOLDER.length;
-  const sz = clamp(want, min, BRAND_SEARCH_MAX_CH);
+  const sz = clamp(want, BRAND_SEARCH_MIN_CH, BRAND_SEARCH_MAX_CH);
   brandSearchInputEl.size = sz;
 }
 
 (() => {
   const st = document.createElement("style");
   st.textContent = `
-    /* ✅ Arama kutusu: Listele (sol) ile InfoBox (sağ) arasında tam orta */
-    .brandSearchSlot{
-      flex: 1 1 auto;           /* orta alanı kapla */
-      min-width: 0;
-      display:flex;
-      align-items:center;
-      justify-content:center;    /* kendi içinde ortala */
-    }
-    .brandSearchBox{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      height:36px;
-      padding:0 10px;
-      border:1px solid var(--border-2);
-      border-radius:10px;
-      background: var(--bg-panel);
-      box-sizing:border-box;
-      width: auto;
-      max-width: min(520px, 92vw);
-    }
-    .brandSearchBox .ic{
-      opacity:.88;
-      font-weight:1100;
-      color: var(--text-2);
-      white-space:nowrap;
-      user-select:none;
-      flex:0 0 auto;
-    }
-    .brandSearchBox input{
-      width:auto;
-      background:transparent;
-      border:0;
-      outline:none;
-      color:var(--text);
-      font-weight:1100;
-      font-size:14px;
-      padding:0;
-      margin:0;
-      min-width:0;
-      max-width: 100%;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-    }
-    .brandSearchBox input::placeholder{ color:var(--text-2); opacity:.85; }
-
-    .brandToggle{
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      gap:8px;
-      width:100%;
-      padding:8px 0 2px;
-      user-select:none;
-      cursor:pointer;
-      font-weight:1100;
-      color:var(--text-2);
-    }
+    .brandSearchSlot{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:center}
+    .brandSearchBox{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border-2);border-radius:10px;background:var(--bg-panel);box-sizing:border-box;width:auto;max-width:min(520px,92vw)}
+    .brandSearchBox .ic{opacity:.88;font-weight:1100;color:var(--text-2);white-space:nowrap;user-select:none;flex:0 0 auto}
+    .brandSearchBox input{width:auto;background:transparent;border:0;outline:none;color:var(--text);font-weight:1100;font-size:14px;padding:0;margin:0;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .brandSearchBox input::placeholder{color:var(--text-2);opacity:.85}
+    .brandToggle{display:flex;justify-content:center;align-items:center;gap:8px;width:100%;padding:8px 0 2px;user-select:none;cursor:pointer;font-weight:1100;color:var(--text-2)}
     .brandToggle:hover{color:var(--text)}
     .brandToggle .arr{font-size:14px;opacity:.9}
-    .guidePulse{ animation-timing-function: ease-in !important; }
+    .guidePulse{animation-timing-function:ease-in!important}
   `;
   document.head.appendChild(st);
 })();
@@ -246,10 +178,7 @@ let DAILY_SELECTED = { tsoft: "", aide: "" };
 let DAILY_READ_CACHE = { date: "", pass: "" };
 let DAILY_SAVE_CRED = null;
 
-const setBtnSel = (btn, sel) => {
-  if (!btn) return;
-  sel ? btn.classList.add("sel") : btn.classList.remove("sel");
-};
+const setBtnSel = (btn, sel) => { if (!btn) return; sel ? btn.classList.add("sel") : btn.classList.remove("sel"); };
 
 function pickHMFrom(obj) {
   if (!obj) return "";
@@ -264,7 +193,6 @@ function pickHMFrom(obj) {
   }
   return "";
 }
-
 function pickDateFrom(obj) {
   if (!obj) return { ymd: "", dmy: "" };
   return {
@@ -272,17 +200,13 @@ function pickDateFrom(obj) {
     dmy: String(obj.dmy || obj.DMY || obj.dateText || obj.display || obj.tarih || "").trim(),
   };
 }
-
 function getAideDailyPick() {
   const todayAide = DAILY_META?.today?.aide || DAILY_META?.aide?.today || DAILY_META?.todayAide || DAILY_META?.aideToday || null;
   const yesterdayAide = DAILY_META?.yesterday?.aide || DAILY_META?.aide?.yesterday || DAILY_META?.yesterdayAide || DAILY_META?.aideYesterday || null;
-
   const todayExists = !!(todayAide?.exists || DAILY_META?.today?.aideExists || DAILY_META?.today?.aide?.exists);
   const yestExists = !!(yesterdayAide?.exists || DAILY_META?.yesterday?.aideExists || DAILY_META?.yesterday?.aide?.exists);
-
   const todayDate = pickDateFrom(DAILY_META?.today);
   const yestDate = pickDateFrom(DAILY_META?.yesterday);
-
   if (todayExists) {
     const hm = pickHMFrom(todayAide) || pickHMFrom(DAILY_META?.today) || "";
     return { exists: true, isToday: true, ymd: todayDate.ymd, dmy: todayDate.dmy, hm };
@@ -290,17 +214,13 @@ function getAideDailyPick() {
   if (yestExists) return { exists: true, isToday: false, ymd: yestDate.ymd, dmy: yestDate.dmy, hm: "" };
   return { exists: false, isToday: false, ymd: "", dmy: "", hm: "" };
 }
-
 function getTsoftDailyPick() {
   const todayTsoft = DAILY_META?.today?.tsoft || DAILY_META?.tsoft?.today || DAILY_META?.todayTsoft || DAILY_META?.tsoftToday || null;
   const yesterdayTsoft = DAILY_META?.yesterday?.tsoft || DAILY_META?.tsoft?.yesterday || DAILY_META?.yesterdayTsoft || DAILY_META?.tsoftYesterday || null;
-
   const todayExists = !!(todayTsoft?.exists || DAILY_META?.today?.tsoftExists || DAILY_META?.today?.tsoft?.exists);
   const yestExists = !!(yesterdayTsoft?.exists || DAILY_META?.yesterday?.tsoftExists || DAILY_META?.yesterday?.tsoft?.exists);
-
   const todayDate = pickDateFrom(DAILY_META?.today);
   const yestDate = pickDateFrom(DAILY_META?.yesterday);
-
   if (todayExists) {
     const hm = pickHMFrom(todayTsoft) || pickHMFrom(DAILY_META?.today) || "";
     return { exists: true, isToday: true, ymd: todayDate.ymd, dmy: todayDate.dmy, hm };
@@ -308,7 +228,6 @@ function getTsoftDailyPick() {
   if (yestExists) return { exists: true, isToday: false, ymd: yestDate.ymd, dmy: yestDate.dmy, hm: "" };
   return { exists: false, isToday: false, ymd: "", dmy: "", hm: "" };
 }
-
 function paintDailyUI() {
   const tBtn = $("tsoftDailyBtn"), aBtn = $("aideDailyBtn");
 
@@ -318,7 +237,6 @@ function paintDailyUI() {
       ? tPick.hm ? `Bugün ${tPick.hm} Tarihli Veri` : "Bugün — Tarihli Veri"
       : tPick.dmy ? `${tPick.dmy} Tarihli Veri` : "—"
     : "—";
-
   const tSel = !!(tPick.ymd && DAILY_SELECTED.tsoft && DAILY_SELECTED.tsoft === tPick.ymd);
   if (tBtn) {
     tBtn.disabled = !tPick.exists;
@@ -333,7 +251,6 @@ function paintDailyUI() {
       ? aPick.hm ? `Bugün ${aPick.hm} Tarihli Veri` : "Bugün — Tarihli Veri"
       : aPick.dmy ? `${aPick.dmy} Tarihli Veri` : "—"
     : "—";
-
   const aSel = !!(aPick.ymd && DAILY_SELECTED.aide && DAILY_SELECTED.aide === aPick.ymd);
   if (aBtn) {
     aBtn.disabled = !aPick.exists;
@@ -346,21 +263,12 @@ function paintDailyUI() {
   if (tPrev) (tPrev.style.display = "none"), (tPrev.textContent = ""), (tPrev.title = "");
   if (aPrev) (aPrev.style.display = "none"), (aPrev.textContent = ""), (aPrev.title = "");
 }
-
 async function refreshDailyMeta() {
-  try {
-    DAILY_META = await dailyMeta(API_BASE);
-  } catch (e) {
-    console.warn("daily meta fail", e);
-    DAILY_META = null;
-  }
+  try { DAILY_META = await dailyMeta(API_BASE); }
+  catch { DAILY_META = null; }
   paintDailyUI();
 }
-
-const closeModalByButton = (btnId) => {
-  const b = $(btnId);
-  b && b.click();
-};
+function closeModalByButton(btnId) { const b = $(btnId); b && b.click(); }
 
 function toggleDaily(kind) {
   if (kind === "tsoft") {
@@ -391,7 +299,6 @@ function ensureSaveCredOrCancel() {
   DAILY_SAVE_CRED = { adminPassword: String(admin).trim(), readPassword: String(read).trim() };
   return true;
 }
-
 async function getReadPassOrPrompt(dateYmd) {
   const ymd = String(dateYmd || "").trim();
   if (!ymd) throw new Error("Tarih bulunamadı");
@@ -401,14 +308,8 @@ async function getReadPassOrPrompt(dateYmd) {
   return p.trim();
 }
 
-$("tsoftDailyBtn")?.addEventListener("click", (e) => {
-  e.preventDefault();
-  toggleDaily("tsoft");
-});
-$("aideDailyBtn")?.addEventListener("click", (e) => {
-  e.preventDefault();
-  toggleDaily("aide");
-});
+$("tsoftDailyBtn")?.addEventListener("click", (e) => { e.preventDefault(); toggleDaily("tsoft"); });
+$("aideDailyBtn")?.addEventListener("click", (e) => { e.preventDefault(); toggleDaily("aide"); });
 
 let BRANDS = [];
 let SELECTED = new Set();
@@ -420,9 +321,6 @@ let brandListExpanded = false;
 
 const COMPEL_LIMIT = 25;
 const ALL_LIMIT = 3;
-
-let brandSearchSlotEl = null;
-let brandSearchInputEl = null;
 
 function ensureBrandSearchSlot() {
   const goBtn = $("go");
@@ -439,27 +337,20 @@ function ensureBrandSearchSlot() {
         <input id="brandSearchTopInput" type="text" placeholder="${esc(BRAND_SEARCH_PLACEHOLDER)}" autocomplete="off" />
       </div>
     `;
-
-    // ✅ Konum: go (Listele) ile infoBox (Hazır… chip’leri) arasına koy
-    if (infoBox && infoBox.parentElement === leftControls) {
-      leftControls.insertBefore(brandSearchSlotEl, infoBox);
-    } else {
-      // infoBox bulunamazsa: go’dan sonra ekle
+    if (infoBox && infoBox.parentElement === leftControls) leftControls.insertBefore(brandSearchSlotEl, infoBox);
+    else {
       if (goBtn.nextSibling) leftControls.insertBefore(brandSearchSlotEl, goBtn.nextSibling);
       else leftControls.appendChild(brandSearchSlotEl);
     }
 
     brandSearchInputEl = $("brandSearchTopInput");
-
     if (brandSearchInputEl) {
       syncBrandSearchSize();
-
       brandSearchInputEl.addEventListener("input", () => {
         brandFilterText = String(brandSearchInputEl.value || "");
         syncBrandSearchSize();
         renderBrands();
       });
-
       brandSearchInputEl.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -469,16 +360,13 @@ function ensureBrandSearchSlot() {
           renderBrands();
         }
       });
-
       brandSearchInputEl.addEventListener("blur", () => {
         if (!String(brandSearchInputEl.value || "").trim()) syncBrandSearchSize();
       });
     }
   }
 
-  if (brandSearchSlotEl) {
-    brandSearchSlotEl.style.display = ACTIVE_SUPPLIER === SUPPLIERS.AKALIN ? "none" : "";
-  }
+  if (brandSearchSlotEl) brandSearchSlotEl.style.display = ACTIVE_SUPPLIER === SUPPLIERS.AKALIN ? "none" : "";
 }
 
 const updateBrandChip = () => {
@@ -495,13 +383,11 @@ function getVisibleBrands() {
   if (!q) return BRANDS;
   return BRANDS.filter((b) => String(b.name || "").toLocaleLowerCase(TR).includes(q));
 }
-
 function getLimitBySupplier() {
   if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) return ALL_LIMIT;
   if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) return COMPEL_LIMIT;
   return 9999;
 }
-
 function computeVisibleRowsLimit() {
   if (String(brandFilterText || "").trim()) return 9999;
   return brandListExpanded ? 9999 : getLimitBySupplier();
@@ -538,10 +424,7 @@ const renderBrands = () => {
   brandsWrap.style.display = "contents";
   list.appendChild(brandsWrap);
 
-  const vis = [...visAll].sort((a, b) =>
-    String(a.name || "").localeCompare(String(b.name || ""), "tr", { sensitivity: "base" })
-  );
-
+  const vis = [...visAll].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "tr", { sensitivity: "base" }));
   const limit = computeVisibleRowsLimit();
   const sliced = vis.slice(0, limit);
 
@@ -576,14 +459,11 @@ const renderBrands = () => {
 };
 
 function toggleBrand(id, el) {
-  SELECTED.has(id)
-    ? (SELECTED.delete(id), el.classList.remove("sel"))
-    : (SELECTED.add(id), el.classList.add("sel"));
+  SELECTED.has(id) ? (SELECTED.delete(id), el.classList.remove("sel")) : (SELECTED.add(id), el.classList.add("sel"));
   updateBrandChip();
   if (!hasEverListed) setGuideStep(SELECTED.size > 0 ? "tsoft" : "brand");
   applySupplierUi();
 }
-
 function toggleAllVisible() {
   const vis = getVisibleBrands();
   if (!vis.length) return;
@@ -598,31 +478,20 @@ $("brandList")?.addEventListener("click", (e) => {
   if (!el) return;
   const kind = el.dataset.kind || "brand";
   if (kind === "all") return void toggleAllVisible();
-  if (kind === "toggle") {
-    brandListExpanded = !brandListExpanded;
-    return void renderBrands();
-  }
+  if (kind === "toggle") { brandListExpanded = !brandListExpanded; return void renderBrands(); }
   if (kind === "brand") {
     const id = el.dataset.id;
     const n = Number(id);
     Number.isFinite(n) && toggleBrand(n, el);
   }
 });
-
 $("brandList")?.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const el = e.target.closest(".brand, .brandToggle");
   if (!el) return;
   const kind = el.dataset.kind || "brand";
-  if (kind === "toggle") {
-    e.preventDefault();
-    brandListExpanded = !brandListExpanded;
-    return void renderBrands();
-  }
-  if (kind === "all") {
-    e.preventDefault();
-    return void toggleAllVisible();
-  }
+  if (kind === "toggle") { e.preventDefault(); brandListExpanded = !brandListExpanded; return void renderBrands(); }
+  if (kind === "all") { e.preventDefault(); return void toggleAllVisible(); }
   if (kind === "brand") {
     e.preventDefault();
     const id = el.dataset.id;
@@ -651,8 +520,7 @@ async function initBrands() {
     const data = await loadBrands(API_BASE);
     COMPEL_BRANDS_CACHE = data;
     if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) BRANDS = data;
-  } catch (e) {
-    console.error(e);
+  } catch {
     if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) {
       const el2 = $("brandStatus");
       el2 && (el2.textContent = "Markalar yüklenemedi (API).", (el2.title = el2.textContent));
@@ -663,9 +531,7 @@ async function initBrands() {
   }
 }
 
-// ---- Aşağısı önceki app.js ile aynı (değişmedi) ----
-// (Dosyanın tamamını istediğin için altta aynen devam ediyor.)
-
+// Supplier dropdown
 (() => {
   const wrap = $("supplierWrap"),
     btn = $("supplierBtn"),
@@ -676,16 +542,8 @@ async function initBrands() {
     itA = $("supplierAkalinItem");
   if (!wrap || !btn || !menu || !itC || !itAll || !itA) return;
 
-  const open = () => {
-    menu.classList.add("show");
-    menu.setAttribute("aria-hidden", "false");
-    btn.setAttribute("aria-expanded", "true");
-  };
-  const close = () => {
-    menu.classList.remove("show");
-    menu.setAttribute("aria-hidden", "true");
-    btn.setAttribute("aria-expanded", "false");
-  };
+  const open = () => { menu.classList.add("show"); menu.setAttribute("aria-hidden", "false"); btn.setAttribute("aria-expanded", "true"); };
+  const close = () => { menu.classList.remove("show"); menu.setAttribute("aria-hidden", "true"); btn.setAttribute("aria-expanded", "false"); };
   const toggle = () => (menu.classList.contains("show") ? close() : open());
 
   const paint = () => {
@@ -701,7 +559,6 @@ async function initBrands() {
 
   const setSupplier = async (name) => {
     if (!name || name === ACTIVE_SUPPLIER) return void close();
-
     ACTIVE_SUPPLIER = name;
 
     const lab = $("supplierLabel");
@@ -709,10 +566,7 @@ async function initBrands() {
 
     brandFilterText = "";
     brandListExpanded = false;
-    if (brandSearchInputEl) {
-      brandSearchInputEl.value = "";
-      syncBrandSearchSize();
-    }
+    if (brandSearchInputEl) { brandSearchInputEl.value = ""; syncBrandSearchSize(); }
 
     if (name === SUPPLIERS.AKALIN) {
       brandPrefix = "Akalın";
@@ -731,38 +585,14 @@ async function initBrands() {
     close();
   };
 
-  btn.addEventListener("click", (e) => {
-    e.preventDefault();
-    paint();
-    toggle();
-  });
-
-  itC.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (itC.getAttribute("aria-disabled") === "true") return;
-    void setSupplier(SUPPLIERS.COMPEL);
-  });
-
-  itAll.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (itAll.getAttribute("aria-disabled") === "true") return;
-    void setSupplier(SUPPLIERS.ALL);
-  });
-
-  itA.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (itA.getAttribute("aria-disabled") === "true") return;
-    void setSupplier(SUPPLIERS.AKALIN);
-  });
-
-  addBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    close();
-  });
+  btn.addEventListener("click", (e) => { e.preventDefault(); paint(); toggle(); });
+  itC.addEventListener("click", (e) => { e.preventDefault(); if (itC.getAttribute("aria-disabled") === "true") return; void setSupplier(SUPPLIERS.COMPEL); });
+  itAll.addEventListener("click", (e) => { e.preventDefault(); if (itAll.getAttribute("aria-disabled") === "true") return; void setSupplier(SUPPLIERS.ALL); });
+  itA.addEventListener("click", (e) => { e.preventDefault(); if (itA.getAttribute("aria-disabled") === "true") return; void setSupplier(SUPPLIERS.AKALIN); });
+  addBtn?.addEventListener("click", (e) => { e.preventDefault(); close(); });
 
   document.addEventListener("click", (e) => !wrap.contains(e.target) && close());
   addEventListener("keydown", (e) => e.key === "Escape" && close());
-
   paint();
 })();
 
@@ -780,23 +610,14 @@ function applySupplierUi() {
     }
   }
 
-  const dl1 = $("dl1");
-  dl1 && (dl1.style.display = "none");
-
   const l1 = $("l1Chip");
   if (l1) l1.style.display = ACTIVE_SUPPLIER === SUPPLIERS.ALL ? "none" : "";
 
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
-    INFO_HIDE_IDS.forEach((id) => {
-      const el = $(id);
-      el && (el.style.display = "none");
-    });
+    INFO_HIDE_IDS.forEach((id) => { const el = $(id); el && (el.style.display = "none"); });
     setStatus("Tedarikçi Akalın entegre edilmedi. Lütfen farklı bir tedarikçi seçin.", "bad");
   } else {
-    INFO_HIDE_IDS.forEach((id) => {
-      const el = $(id);
-      el && (el.style.display = "");
-    });
+    INFO_HIDE_IDS.forEach((id) => { const el = $(id); el && (el.style.display = ""); });
     setStatus("Hazır", "ok");
     updateBrandChip();
   }
@@ -811,11 +632,6 @@ const depot = createDepot({
     DAILY_SELECTED.aide = "";
     paintDailyUI();
     if (!hasEverListed) setGuideStep("list");
-
-    if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL && matcher.hasData()) {
-      matcher.runMatch();
-      refreshCompel();
-    }
 
     applySupplierUi();
 
@@ -841,7 +657,6 @@ const depot = createDepot({
         }
       }
     } catch (err) {
-      console.error(err);
       setStatus(String(err?.message || err), "bad");
       alert(String(err?.message || err));
     }
@@ -855,10 +670,7 @@ const matcher = createMatcher({
 
 const renderer = createRenderer({ ui });
 
-let listTitleEl = null,
-  listSepEl = null,
-  lastListedTitle = "",
-  goMode = "list";
+let listTitleEl = null, listSepEl = null, lastListedTitle = "", goMode = "list";
 
 const joinTrList = (arr) => {
   const a = (arr || []).filter(Boolean);
@@ -867,13 +679,11 @@ const joinTrList = (arr) => {
   if (a.length === 2) return `${a[0]} ve ${a[1]}`;
   return `${a.slice(0, -1).join(", ")} ve ${a[a.length - 1]}`;
 };
-
 const getSupplierName = () => {
   const t = (($("supplierLabel")?.textContent || $("supplierBtn")?.textContent) || "").trim();
   const m = t.match(/:\s*(.+)\s*$/);
   return (m ? (m[1] || "") : t.replace(/^1\)\s*/i, "").replace(/^Tedarikçi\s*/i, "")).trim() || "—";
 };
-
 const getSelectedBrandNames = () => {
   const out = [];
   for (const id of SELECTED) {
@@ -883,13 +693,10 @@ const getSelectedBrandNames = () => {
   out.sort((a, b) => a.localeCompare(b, "tr", { sensitivity: "base" }));
   return out;
 };
-
 const buildListTitle = () => {
-  const sup = getSupplierName(),
-    brands = getSelectedBrandNames();
+  const sup = getSupplierName(), brands = getSelectedBrandNames();
   if (!brands.length) return `Tedarikçi ${sup} için marka seçilmedi.`;
   const brTxt = joinTrList(brands);
-
   if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) {
     return `Tüm Markalar için ${brTxt} ${brands.length === 1 ? "markasında" : "markalarında"} yapılan T-Soft ve Aide karşılaştırma listesi`;
   }
@@ -916,19 +723,16 @@ const ensureListHeader = () => {
   listTitleEl.style.display = "none";
   listSepEl.style.display = "none";
 };
-
 const setListTitleVisible = (show) => {
   ensureListHeader();
   listTitleEl && (listTitleEl.style.display = show ? "" : "none");
   listSepEl && (listSepEl.style.display = show ? "" : "none");
 };
-
 const lockListTitleFromCurrentSelection = () => {
   ensureListHeader();
   lastListedTitle = buildListTitle();
   listTitleEl && (listTitleEl.textContent = lastListedTitle);
 };
-
 const setGoMode = (mode) => {
   goMode = mode;
   const b = $("go");
@@ -961,10 +765,12 @@ const setScanState = (on) => {
   goBtn && (goBtn.disabled = on);
   $("f2") && ($("f2").disabled = on);
   $("depoBtn") && ($("depoBtn").disabled = on);
-  $("tsoftDailyBtn") && ($("tsoftDailyBtn").disabled = on || $("tsoftDailyBtn").disabled);
-  $("aideDailyBtn") && ($("aideDailyBtn").disabled = on || $("aideDailyBtn").disabled);
+  const t = $("tsoftDailyBtn"), a = $("aideDailyBtn");
+  t && (t.disabled = on || t.disabled);
+  a && (a.disabled = on || a.disabled);
 };
 
+// ---- T-Soft modal wrapper (kullanıcı akışı korunur)
 (() => {
   const box = $("sescBox"),
     inp = $("f2"),
@@ -988,7 +794,6 @@ const setScanState = (on) => {
         root = getComputedStyle(document.documentElement);
       const M = parseFloat(root.getPropertyValue("--popM")) || 12,
         G = parseFloat(root.getPropertyValue("--popGap")) || 10;
-
       let left = a.left;
       left = Math.max(M, Math.min(left, window.innerWidth - r.width - M));
       let top = a.top - r.height - G;
@@ -1000,105 +805,54 @@ const setScanState = (on) => {
     });
   };
 
-  const show = () => {
-    modal.style.display = "block";
-    modal.setAttribute("aria-hidden", "false");
-    place();
-    setTimeout(() => pick.focus(), 0);
-  };
-
-  const hide = () => {
-    modal.style.display = "none";
-    modal.setAttribute("aria-hidden", "true");
-    inner.style.position = "";
-    inner.style.left = "";
-    inner.style.top = "";
-    inner.style.visibility = "";
-  };
+  const show = () => { modal.style.display = "block"; modal.setAttribute("aria-hidden", "false"); place(); setTimeout(() => pick.focus(), 0); };
+  const hide = () => { modal.style.display = "none"; modal.setAttribute("aria-hidden", "true"); inner.style.position = ""; inner.style.left = ""; inner.style.top = ""; inner.style.visibility = ""; };
 
   const openPicker = () => {
     allow = true;
     hide();
     requestAnimationFrame(() => {
-      try {
-        inp.click();
-      } finally {
-        setTimeout(() => {
-          allow = false;
-        }, 0);
-      }
+      try { inp.click(); }
+      finally { setTimeout(() => { allow = false; }, 0); }
     });
   };
 
-  box.addEventListener(
-    "click",
-    (e) => {
-      if (inp.disabled) return;
-      if (allow) {
-        allow = false;
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      show();
-    },
-    true
-  );
+  box.addEventListener("click", (e) => {
+    if (inp.disabled) return;
+    if (allow) { allow = false; return; }
+    e.preventDefault(); e.stopPropagation(); show();
+  }, true);
 
-  pick.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    openPicker();
-  });
-
-  dismiss.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    hide();
-  });
+  pick.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openPicker(); });
+  dismiss.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); hide(); });
 
   addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || !isOpen()) return;
-    e.preventDefault();
-    e.stopPropagation();
-    openPicker();
+    e.preventDefault(); e.stopPropagation(); openPicker();
   });
 
   addEventListener("resize", () => isOpen() && place());
   addEventListener("scroll", () => isOpen() && place(), true);
 
   const cb = $("tsoftSaveToday");
-  cb &&
-    cb.addEventListener("change", () => {
-      cb.checked && !ensureSaveCredOrCancel() && (cb.checked = false);
-    });
+  cb && cb.addEventListener("change", () => { cb.checked && !ensureSaveCredOrCancel() && (cb.checked = false); });
 })();
 
 const bind = (inId, outId, empty) => {
   const inp = $(inId), out = $(outId);
   if (!inp || !out) return;
-
   const upd = () => {
     const f = inp.files?.[0];
-    if (!f) {
-      out.textContent = empty;
-      out.title = empty;
-    } else {
-      out.textContent = "Seçildi";
-      out.title = f.name;
-    }
-
+    if (!f) { out.textContent = empty; out.title = empty; }
+    else { out.textContent = "Seçildi"; out.title = f.name; }
     f && (DAILY_SELECTED.tsoft = "", paintDailyUI());
-
     if (!hasEverListed) {
       if (SELECTED.size === 0) setGuideStep("brand");
       else if (!f) setGuideStep("tsoft");
       else setGuideStep("aide");
     }
-
     applySupplierUi();
   };
-
   inp.addEventListener("change", upd);
   upd();
 };
@@ -1109,18 +863,391 @@ $("aideSaveToday")?.addEventListener("change", (e) => {
   cb.checked && !ensureSaveCredOrCancel() && (cb.checked = false);
 });
 
-// ---- buradan sonrası senin önceki dosyanla aynı şekilde devam eder ----
-// (Burada mesaj çok uzamasın diye devamını kesmedim; ama çalışması için dosyada zaten mevcut.)
+// --------------------
+// STATE: T-Soft data (cached)
+// --------------------
+let TSOFT_ROWS = [];
+let TSOFT_COLS = {};
+let TSOFT_READY = false;
 
-function refreshCompel() {
-  const { R } = matcher.getResults();
-  const Ux = [];
-  renderer.render(R, Ux, depot.isReady());
+function resetTsoft() {
+  TSOFT_ROWS = [];
+  TSOFT_COLS = {};
+  TSOFT_READY = false;
+  setChip("l2Chip", "T-Soft:-");
+}
+
+function loadTsoftFromRows(rows) {
+  const sample = rows?.[0] || {};
+  const ws = pickColumn(sample, ["Web Servis Kodu", "WebServisKodu", "WS", "webservis", "web servis kodu"]);
+  const urunAdi = pickColumn(sample, ["Ürün Adı", "Urun Adi", "Ürün Adi", "Product Name"]);
+  const sup = pickColumn(sample, ["Tedarikçi Ürün Kodu", "Tedarikci Urun Kodu", "Supplier Product Code", "Sup Code"]);
+  const barkod = pickColumn(sample, ["Barkod", "EAN", "Barcode"]);
+  const stok = pickColumn(sample, ["Stok", "Stock", "Qty", "Quantity"]);
+  const aktif = pickColumn(sample, ["Aktif", "Active"]);
+  const marka = pickColumn(sample, ["Marka", "Brand"]);
+  const seo = pickColumn(sample, ["SEO Link", "Seo", "SEO", "Link"]);
+
+  if (!urunAdi || !sup) throw new Error("T-Soft CSV kolonları bulunamadı. (Ürün Adı / Tedarikçi Ürün Kodu)");
+  TSOFT_ROWS = rows;
+  TSOFT_COLS = { ws, urunAdi, sup, barkod, stok, aktif, marka, seo };
+  TSOFT_READY = true;
+  setChip("l2Chip", `T-Soft:${rows.length}`);
+}
+
+async function ensureTsoftLoadedForList() {
+  if (DAILY_SELECTED.tsoft) {
+    const pass = await getReadPassOrPrompt(DAILY_SELECTED.tsoft);
+    setStatus("T-Soft günlük veri okunuyor…", "unk");
+    const j = await dailyGet(API_BASE, { date: DAILY_SELECTED.tsoft, password: pass, want: "tsoft" });
+    const raw = String(j?.data || j?.text || j?.raw || "");
+    if (!raw.trim()) throw new Error("T-Soft günlük veri boş.");
+    const p = parseDelimited(raw);
+    const rows = p?.rows || [];
+    if (!rows.length) throw new Error("T-Soft günlük veri çözümlenemedi.");
+    loadTsoftFromRows(rows);
+    DAILY_READ_CACHE = { date: DAILY_SELECTED.tsoft, pass };
+    setStatus("T-Soft günlük veri yüklendi", "ok");
+    return;
+  }
+
+  if (TSOFT_READY) return;
+
+  const f = $("f2")?.files?.[0];
+  if (!f) throw new Error("T-Soft CSV seçilmedi.");
+  setStatus("T-Soft CSV okunuyor…", "unk");
+  const txt = await readFileText(f);
+  const p = parseDelimited(txt);
+  const rows = p?.rows || [];
+  if (!rows.length) throw new Error("T-Soft CSV boş.");
+  loadTsoftFromRows(rows);
+  setStatus("T-Soft yüklendi", "ok");
+}
+
+// --------------------
+// Reset all (supplier switch / clean state)
+// --------------------
+function resetAll() {
+  abortCtrl?.abort?.();
+  abortCtrl = null;
+  matcher.resetAll();
+  resetTsoft();
+  clearOnlyLists();
+  setGoMode("list");
+  hasEverListed = false;
+  setStatus("Hazır", "ok");
+  setChip("l1Chip", ACTIVE_SUPPLIER === SUPPLIERS.ALL ? "" : "Compel:-");
+  setChip("l4Chip", depot.isReady() ? `Aide:${depot.count()}` : "Aide:-");
+  updateBrandChip();
   applySupplierUi();
 }
 
-// ... (dosyanın geri kalanı senin mevcut app.js'inle aynı)
+// --------------------
+// Compel scan: stream collector (robust)
+// --------------------
+async function scanCompelToRows(brands) {
+  const rows = [];
+  const seen = new Set();
+  abortCtrl = new AbortController();
 
+  let lastMsg = "";
+  const onMessage = (msg) => {
+    if (!msg) return;
+    const t = String(msg.status || msg.message || msg.msg || "").trim();
+    if (t && t !== lastMsg) {
+      lastMsg = t;
+      setStatus(t, "unk");
+    }
+
+    // tolerate various shapes
+    const arr =
+      msg.rows ||
+      msg.data?.rows ||
+      msg.payload?.rows ||
+      msg.items ||
+      msg.data ||
+      null;
+
+    if (Array.isArray(arr)) {
+      for (const r of arr) {
+        if (!r || typeof r !== "object") continue;
+        const k = JSON.stringify(r);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        rows.push(r);
+      }
+    }
+
+    // single row
+    if (msg.row && typeof msg.row === "object") {
+      const k = JSON.stringify(msg.row);
+      if (!seen.has(k)) {
+        seen.add(k);
+        rows.push(msg.row);
+      }
+    }
+  };
+
+  await scanCompel(API_BASE, brands, { signal: abortCtrl.signal, onMessage });
+  abortCtrl = null;
+  return rows;
+}
+
+// --------------------
+// List: Compel mode
+// --------------------
+function buildC1(sample) {
+  const siraNo = pickColumn(sample, ["Sıra No", "Sira No", "Sıra", "Sira", "No"]);
+  const marka = pickColumn(sample, ["Marka", "Brand"]);
+  const urunKodu = pickColumn(sample, ["Ürün Kodu", "Urun Kodu", "Kod", "Product Code", "Web Servis Kodu", "WebServisKodu"]);
+  const urunAdi = pickColumn(sample, ["Ürün Adı", "Urun Adi", "Ad", "Product Name"]);
+  const stok = pickColumn(sample, ["Stok", "Stock"]);
+  const ean = pickColumn(sample, ["EAN", "Barkod", "Barcode"]);
+  const link = pickColumn(sample, ["Link", "URL", "Url", "Ürün Link", "Product Link"]);
+  return { siraNo, marka, urunKodu, urunAdi, stok, ean, link };
+}
+
+function buildC2(sample) {
+  const ws = pickColumn(sample, ["Web Servis Kodu", "WebServisKodu", "WS"]);
+  const urunAdi = pickColumn(sample, ["Ürün Adı", "Urun Adi", "Ürün Adi", "Product Name"]);
+  const sup = pickColumn(sample, ["Tedarikçi Ürün Kodu", "Tedarikci Urun Kodu", "Supplier Product Code", "Sup Code"]);
+  const barkod = pickColumn(sample, ["Barkod", "EAN", "Barcode"]);
+  const stok = pickColumn(sample, ["Stok", "Stock", "Qty", "Quantity"]);
+  const aktif = pickColumn(sample, ["Aktif", "Active"]);
+  const marka = pickColumn(sample, ["Marka", "Brand"]);
+  const seo = pickColumn(sample, ["SEO Link", "Seo", "SEO", "Link"]);
+  return { ws, urunAdi, sup, barkod, stok, aktif, marka, seo };
+}
+
+async function listCompel() {
+  const brands = getSelectedBrandNames();
+  if (!brands.length) throw new Error("Marka seçilmedi.");
+
+  await ensureTsoftLoadedForList();
+
+  setScanState(true);
+  setStatus("Compel taranıyor…", "unk");
+  const l1 = await scanCompelToRows(brands);
+  if (!l1.length) throw new Error("Compel verisi gelmedi.");
+
+  const c1 = buildC1(l1[0]);
+  if (!c1.marka || !c1.urunAdi) throw new Error("Compel verisi kolonları çözülemedi (Marka/Ürün Adı).");
+
+  const l2 = TSOFT_ROWS;
+  const c2 = TSOFT_COLS.ws ? TSOFT_COLS : buildC2(l2[0]);
+
+  matcher.loadData({ l1, c1, l2, c2, l2All: l2 });
+  matcher.runMatch();
+
+  const { R } = matcher.getResults();
+  renderer.render(R, [], depot.isReady());
+
+  setChip("l1Chip", `Compel:${l1.length}`);
+  setChip("l4Chip", depot.isReady() ? `Aide:${depot.count()}` : "Aide:-");
+
+  lockListTitleFromCurrentSelection();
+  setListTitleVisible(true);
+
+  setGoMode("clear");
+  hasEverListed = true;
+  setStatus("Hazır", "ok");
+  setScanState(false);
+}
+
+// --------------------
+// List: ALL mode (T-Soft ↔ Aide)
+// --------------------
+function parseBoolAktif(v) {
+  const s = String(v ?? "").trim().toLocaleLowerCase(TR);
+  if (!s) return null;
+  if (s === "true" || s === "1" || s === "yes" || s === "evet") return true;
+  if (s === "false" || s === "0" || s === "no" || s === "hayir" || s === "hayır") return false;
+  return null;
+}
+
+function buildAllCompareRows({ brandsNormSet }) {
+  // Depot map: brNorm -> Map(code -> {code,name,num})
+  const aideMapByBrand = depot.getBrandItemMap();
+  const tsoftSupByBrand = new Map(); // brNorm -> Set(supCode)
+  const tsoftItemsByBrand = new Map(); // brNorm -> Map(code -> item)
+
+  // Build Tsoft per brand map
+  const r2 = TSOFT_ROWS || [];
+  const C2 = TSOFT_COLS.ws ? TSOFT_COLS : buildC2(r2[0] || {});
+  const getBr = (row) => normBrand(row?.[C2.marka] ?? row?.["Marka"] ?? "");
+  for (const row of r2) {
+    const brNorm = getBr(row);
+    if (!brNorm) continue;
+    if (brandsNormSet && !brandsNormSet.has(brNorm)) continue;
+
+    const sup = T(row?.[C2.sup] ?? "");
+    if (!sup) continue;
+
+    const supKey = sup.toString().trim();
+    tsoftSupByBrand.has(brNorm) || tsoftSupByBrand.set(brNorm, new Set());
+    tsoftSupByBrand.get(brNorm).add(supKey);
+
+    const name = T(row?.[C2.urunAdi] ?? "");
+    const stokRaw = row?.[C2.stok] ?? "";
+    const stokNum = stockToNumber(stokRaw, { source: "products" });
+    const aktif = C2.aktif ? parseBoolAktif(row?.[C2.aktif]) : null;
+
+    tsoftItemsByBrand.has(brNorm) || tsoftItemsByBrand.set(brNorm, new Map());
+    const m = tsoftItemsByBrand.get(brNorm);
+    if (!m.has(supKey)) {
+      m.set(supKey, { sup: supKey, name, stokNum, aktif });
+    } else {
+      const it = m.get(supKey);
+      it.stokNum = (Number(it.stokNum) || 0) + (Number(stokNum) || 0);
+      if (!it.name && name) it.name = name;
+      if (it.aktif == null && aktif != null) it.aktif = aktif;
+    }
+  }
+
+  const rows = [];
+  const unmatchedTsoft = [];
+  const unmatchedAide = [];
+
+  for (const brNorm of (brandsNormSet ? [...brandsNormSet] : [...tsoftItemsByBrand.keys()])) {
+    const tsoftMap = tsoftItemsByBrand.get(brNorm) || new Map();
+    const aideMap = aideMapByBrand.get(brNorm) || new Map();
+
+    // matched rows
+    for (const [code, tIt] of tsoftMap.entries()) {
+      if (aideMap.has(code)) {
+        const aIt = aideMap.get(code);
+        const pulse = ((Number(tIt.stokNum) || 0) > 0) !== ((Number(aIt.num) || 0) > 0);
+        rows.push({
+          _m: true,
+          _pulse: pulse,
+          _tpassive: tIt.aktif === false,
+          "Marka": brNorm,
+          "Ürün Kodu (T-Soft)": code,
+          "Ürün Adı (T-Soft)": tIt.name || "",
+          "Ürün Kodu (Aide)": code,
+          "Ürün Adı (Aide)": aIt.name || "",
+          "Stok (T-Soft)": Number(tIt.stokNum) || 0,
+          "Stok (Aide)": Number(aIt.num) || 0,
+        });
+      }
+    }
+
+    // unmatched Tsoft
+    for (const [code, tIt] of tsoftMap.entries()) {
+      if (!aideMap.has(code)) {
+        unmatchedTsoft.push({
+          "Marka": brNorm,
+          "Ürün Kodu": code,
+          "Ürün Adı": tIt.name || "",
+          "Stok": Number(tIt.stokNum) || 0
+        });
+      }
+    }
+
+    // unmatched Aide
+    for (const [code, aIt] of aideMap.entries()) {
+      if (!tsoftMap.has(code)) {
+        unmatchedAide.push({
+          "Marka": brNorm,
+          "Ürün Kodu": code,
+          "Ürün Adı": aIt.name || "",
+          "Stok": Number(aIt.num) || 0
+        });
+      }
+    }
+  }
+
+  // Make brand labels nicer (original seed casing): renderer uses "Marka" field; we can leave norm.
+  return { rows, unmatchedTsoft, unmatchedAide, tsoftSupByBrand };
+}
+
+async function listAll() {
+  const brands = getSelectedBrandNames();
+  if (!brands.length) throw new Error("Marka seçilmedi.");
+
+  await ensureTsoftLoadedForList();
+
+  // Aide daily selected but depot not loaded -> load depot via dailyGet into depot
+  if (DAILY_SELECTED.aide && !depot.isReady()) {
+    const pass = await getReadPassOrPrompt(DAILY_SELECTED.aide);
+    setStatus("Aide günlük veri okunuyor…", "unk");
+    const j = await dailyGet(API_BASE, { date: DAILY_SELECTED.aide, password: pass, want: "aide" });
+    const raw = String(j?.data || j?.text || j?.raw || "");
+    if (!raw.trim()) throw new Error("Aide günlük veri boş.");
+    depot.loadText(raw);
+    DAILY_READ_CACHE = { date: DAILY_SELECTED.aide, pass };
+    setStatus("Aide günlük veri yüklendi", "ok");
+  }
+
+  if (!depot.isReady()) throw new Error("Aide verisi yüklenmedi. (Depo yükle / günlük Aide seç)");
+
+  // brandsNormSet from selected brand names
+  const brandsNormSet = new Set(brands.map((x) => normBrand(x)).filter(Boolean));
+
+  setScanState(true);
+  setStatus("Karşılaştırma yapılıyor…", "unk");
+
+  const { rows, unmatchedTsoft, unmatchedAide } = buildAllCompareRows({ brandsNormSet });
+
+  // nicer display brand: use title-case on original selected name mapping
+  const byNormToLabel = new Map();
+  for (const nm of brands) byNormToLabel.set(normBrand(nm), toTitleCaseTR(nm));
+  for (const r of rows) r["Marka"] = byNormToLabel.get(r["Marka"]) || r["Marka"];
+  for (const u of unmatchedTsoft) u["Marka"] = byNormToLabel.get(u["Marka"]) || u["Marka"];
+  for (const u of unmatchedAide) u["Marka"] = byNormToLabel.get(u["Marka"]) || u["Marka"];
+
+  renderer.renderAll({ rows, unmatchedTsoft, unmatchedAide });
+
+  lockListTitleFromCurrentSelection();
+  setListTitleVisible(true);
+
+  setGoMode("clear");
+  hasEverListed = true;
+  setStatus("Hazır", "ok");
+  setScanState(false);
+}
+
+// --------------------
+// GO button: FIX (Listele çalışır)
+// --------------------
+async function onGoClick() {
+  if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) return;
+
+  if (goMode === "clear") {
+    clearOnlyLists();
+    setGoMode("list");
+    hasEverListed = false;
+    setGuideStep(SELECTED.size > 0 ? "tsoft" : "brand");
+    setStatus("Hazır", "ok");
+    return;
+  }
+
+  try {
+    if (SELECTED.size === 0) {
+      alert("Lütfen marka seçin.");
+      setGuideStep("brand");
+      return;
+    }
+
+    lockListTitleFromCurrentSelection();
+    setListTitleVisible(true);
+
+    if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) await listAll();
+    else await listCompel();
+  } catch (err) {
+    abortCtrl?.abort?.();
+    abortCtrl = null;
+    setScanState(false);
+    setStatus(String(err?.message || err), "bad");
+    alert(String(err?.message || err));
+  }
+}
+
+$("go")?.addEventListener("click", (e) => { e.preventDefault(); onGoClick(); });
+
+// --------------------
+// Init
+// --------------------
 ensureListHeader();
 setGoMode("list");
 setGuideStep("brand");
