@@ -79,22 +79,28 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
 .unmHead{font-weight:1300; text-align:center!important; letter-spacing:.01em;}
 
 /* =========================================================
-   ✅ İSTENEN: ALL modunda Sıra/Marka/Ürün Kodu sütunları
-   içeriği kadar dar olsun (kırpma yok, alt satıra düşme yok)
-   Yöntem:
-   - ALL modunda tabloları table-layout:auto yap
-   - gerçek (natural) genişliği ölçüp fitTableToWrap ile scaleX uygula
-   - ilgili hücrelerde ellipsis/overflow kapat
+   ✅ ALL modunda:
+   - Kod/sıra/marka sütunları minimum (auto + overflow visible)
+   - Ürün adı sütunları kalan boşluğu doldursun (growCol)
+   - Tablolar wrap genişliğini doldursun (width:100%)
+   - Taşarsa scaleX ile sığdır (fitTableToWrap)
    ========================================================= */
 #t1.allAuto, #t2L.allAuto, #t2R.allAuto{
   table-layout:auto!important;
-  width:auto!important;
+  width:100%!important;    /* ✅ boşluk kalmasın, sayfaya yayılsın */
 }
 #t1.allAuto td, #t1.allAuto th,
 #t2L.allAuto td, #t2L.allAuto th,
 #t2R.allAuto td, #t2R.allAuto th{
   overflow:visible!important;
   text-overflow:clip!important;
+}
+
+/* ✅ Ürün adı sütunu büyüsün (kalan alanı alsın) */
+#t1.allAuto th.growCol, #t1.allAuto td.growCol,
+#t2L.allAuto th.growCol, #t2L.allAuto td.growCol,
+#t2R.allAuto th.growCol, #t2R.allAuto td.growCol{
+  width:100%!important;
 }
 `;
   document.head.appendChild(st);
@@ -133,7 +139,7 @@ function fitHeader(tableId) {
 
 /**
  * ✅ Tablonun gerçek genişliğini ölçüp wrap'e sığdır (scaleX).
- * - Artık t2L/t2R için de çalışır (ALL split listelerde kırpma olmasın).
+ * - ALL split listelerde de çalışır.
  */
 function fitTableToWrap(tableId) {
   const t = $(tableId);
@@ -370,6 +376,9 @@ export function createRenderer({ ui } = {}) {
 
       const SEP_LEFT = new Set(["Ürün Kodu (T-Soft)", "Ürün Kodu (Aide)", "Stok (T-Soft)"]);
 
+      // ✅ Ürün adı kolonları büyüsün
+      const isGrow = c => (c === "Ürün Adı (T-Soft)" || c === "Ürün Adı (Aide)");
+
       const tightCol = c => (
         c === "Sıra" || c === "Marka" ||
         c === "Ürün Kodu (T-Soft)" || c === "Ürün Kodu (Aide)" ||
@@ -377,7 +386,11 @@ export function createRenderer({ ui } = {}) {
       );
 
       const head = COLS_ALL.map(c => {
-        const cls = [SEP_LEFT.has(c) ? 'sepL' : '', tightCol(c) ? 'tightCol' : ''].filter(Boolean).join(' ');
+        const cls = [
+          SEP_LEFT.has(c) ? 'sepL' : '',
+          tightCol(c) ? 'tightCol' : '',
+          isGrow(c) ? 'growCol' : ''
+        ].filter(Boolean).join(' ');
         return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
       }).join('');
 
@@ -389,19 +402,17 @@ export function createRenderer({ ui } = {}) {
           <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
 
           <td class="tightCol sepL" title="${esc(r["Ürün Kodu (T-Soft)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (T-Soft)"] || '')}</span></td>
-          <td class="left nameCell"><span class="nm ${tNameCls}" title="${esc(r["Ürün Adı (T-Soft)"] || '')}">${esc(r["Ürün Adı (T-Soft)"] || '')}</span></td>
+          <td class="left nameCell growCol"><span class="nm ${tNameCls}" title="${esc(r["Ürün Adı (T-Soft)"] || '')}">${esc(r["Ürün Adı (T-Soft)"] || '')}</span></td>
 
           <td class="tightCol sepL" title="${esc(r["Ürün Kodu (Aide)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (Aide)"] || '')}</span></td>
-          <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı (Aide)"] || '')}">${esc(r["Ürün Adı (Aide)"] || '')}</span></td>
+          <td class="left nameCell growCol"><span class="nm" title="${esc(r["Ürün Adı (Aide)"] || '')}">${esc(r["Ürün Adı (Aide)"] || '')}</span></td>
 
           <td class="tightCol sepL" title="${esc(fmtStockLabel(r["Stok (T-Soft)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (T-Soft)"]))}</span></td>
           <td class="tightCol" title="${esc(fmtStockLabel(r["Stok (Aide)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (Aide)"]))}</span></td>
         </tr>`;
       }).join('');
 
-      // ✅ ALL modunda colgroup (yüzde) KALDIRILDI:
-      // table-layout:auto ile kolonlar içeriğe göre minimum olacak,
-      // sonra fitTableToWrap scaleX ile wrap’e sığdıracak.
+      // ✅ ALL modunda colgroup yok: auto + growCol + scaleX
       $('t1').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
       const splitSec = $('unmatchedSplitSection');
@@ -424,7 +435,8 @@ export function createRenderer({ ui } = {}) {
             const cls = [
               (c === "Ürün Kodu") ? 'sepL' : '',
               (c === "Stok") ? 'sepL' : '',
-              (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'tightCol' : ''
+              (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'tightCol' : '',
+              (c === "Ürün Adı") ? 'growCol' : ''
             ].filter(Boolean).join(' ');
             return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
           }).join('');
@@ -433,11 +445,10 @@ export function createRenderer({ ui } = {}) {
             <td class="seqCell tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
             <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
             <td class="tightCol sepL" title="${esc(r["Ürün Kodu"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu"] || '')}</span></td>
-            <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
+            <td class="left nameCell growCol"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
             <td class="tightCol sepL" title="${esc(fmtStockLabel(r["Stok"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok"]))}</span></td>
           </tr>`).join('');
 
-          // ✅ split unmatched’larda da colgroup kaldırıldı (auto layout + scaleX)
           $(id).innerHTML = `<thead>${topHead}<tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
         };
 
