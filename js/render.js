@@ -80,42 +80,34 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
 
 /* =========================================================
    ✅ ALL modunda:
-   - Sıra/Marka/Kod/Stock kolonları minimum (içeriğe göre)
-   - Ürün Adı (T-Soft) + Ürün Adı (Aide) kalan alanı doldursun
-   - tablo wrap'e TAM otursun (boşluk kalmasın / taşmasın)
-   Yöntem:
-   - ALL modunda table-layout:fixed + width:100%
-   - shrink kolonlara width:1%, grow kolonlara width:50%
-   - ellipsis/overflow kapalı (okunsun)
-   - fitTableToWrap, taşarsa scaleX ile sığdırır
+   - Dar kolonlar içerik kadar dar kalsın (kırpma yok, alt satır yok)
+   - Ürün Adı (T-Soft/Aide) kolonları sayfaya sığana kadar genişlesin
    ========================================================= */
 #t1.allAuto, #t2L.allAuto, #t2R.allAuto{
-  table-layout:fixed!important;
-  width:100%!important;        /* ✅ boşluk kalmasın */
-  max-width:100%!important;
+  table-layout:auto!important;
+  width:100%!important; /* ✅ boş alan varsa tablo %100'e yayılır */
 }
 
+/* Dar kolonlar: shrink-to-content */
+#t1.allAuto .allNarrowCol, #t2L.allAuto .allNarrowCol, #t2R.allAuto .allNarrowCol{
+  width:1%!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:nowrap!important;
+}
+
+/* Ürün Adı kolonları: boş alanı onlar alsın */
+#t1.allAuto .allNameCol, #t2L.allAuto .allNameCol, #t2R.allAuto .allNameCol{
+  width:49%!important;
+  min-width:240px; /* çok dar ekranda bile bir miktar geniş kalsın */
+}
+
+/* ALL modunda genel hücre overflow’u kırpmasın (kodlar tam görünsün) */
 #t1.allAuto td, #t1.allAuto th,
 #t2L.allAuto td, #t2L.allAuto th,
 #t2R.allAuto td, #t2R.allAuto th{
   overflow:visible!important;
   text-overflow:clip!important;
-}
-
-#t1.allAuto th.allShrink, #t1.allAuto td.allShrink,
-#t2L.allAuto th.allShrink, #t2L.allAuto td.allShrink,
-#t2R.allAuto th.allShrink, #t2R.allAuto td.allShrink{
-  width:1%!important;          /* ✅ minimum kolon */
-}
-
-#t1.allAuto th.allGrow, #t1.allAuto td.allGrow{
-  width:50%!important;         /* ✅ kalan alanı ürün adlarına ver */
-}
-
-/* split unmatched: Ürün Adı büyüsün */
-#t2L.allAuto th.unmGrow, #t2L.allAuto td.unmGrow,
-#t2R.allAuto th.unmGrow, #t2R.allAuto td.unmGrow{
-  width:60%!important;
 }
 `;
   document.head.appendChild(st);
@@ -152,7 +144,9 @@ function fitHeader(tableId) {
   });
 }
 
-/** ✅ gerçek genişliği ölçüp wrap'e sığdır (scaleX) */
+/**
+ * ✅ Tablonun gerçek genişliğini ölçüp wrap'e sığdır (scaleX).
+ */
 function fitTableToWrap(tableId) {
   const t = $(tableId);
   if (!t) return;
@@ -209,6 +203,7 @@ function adjust() {
 
 const fmtNum = n => { const x = Number(n); return Number.isFinite(x) ? (Math.round(x) === x ? String(x) : String(x)) : '0'; };
 
+// ✅ Tüm Markalar stok label
 const fmtStockLabel = n => {
   const x = Number(n);
   const v = Number.isFinite(x) ? x : 0;
@@ -218,7 +213,7 @@ const fmtStockLabel = n => {
 export function createRenderer({ ui } = {}) {
   return {
     render(R, Ux, depotReady) {
-      // Compel modu -> ALL classlarını temizle
+      // Compel modu -> ALL auto class'larını temizle
       const t1 = $('t1'); t1 && t1.classList.remove('allAuto');
       const t2L = $('t2L'); t2L && t2L.classList.remove('allAuto');
       const t2R = $('t2R'); t2R && t2R.classList.remove('allAuto');
@@ -368,7 +363,7 @@ export function createRenderer({ ui } = {}) {
     },
 
     renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}, opts = {}) {
-      // ✅ ALL modunda: auto class’larını aktif et
+      // ✅ ALL modunda: auto layout class’larını aktif et
       const t1 = $('t1'); t1 && t1.classList.add('allAuto');
       const t2L = $('t2L'); t2L && t2L.classList.add('allAuto');
       const t2R = $('t2R'); t2R && t2R.classList.add('allAuto');
@@ -387,13 +382,18 @@ export function createRenderer({ ui } = {}) {
 
       const SEP_LEFT = new Set(["Ürün Kodu (T-Soft)", "Ürün Kodu (Aide)", "Stok (T-Soft)"]);
 
-      const isGrow = c => (c === "Ürün Adı (T-Soft)" || c === "Ürün Adı (Aide)");
-      const isShrink = c => !isGrow(c); // ALL tabloda ad dışı her şey shrink
+      const isNameCol = c => (c === "Ürün Adı (T-Soft)" || c === "Ürün Adı (Aide)");
+      const isNarrowCol = c => (
+        c === "Sıra" || c === "Marka" ||
+        c === "Ürün Kodu (T-Soft)" || c === "Ürün Kodu (Aide)" ||
+        c === "Stok (T-Soft)" || c === "Stok (Aide)"
+      );
 
       const head = COLS_ALL.map(c => {
         const cls = [
           SEP_LEFT.has(c) ? 'sepL' : '',
-          isShrink(c) ? 'tightCol allShrink' : 'allGrow'
+          isNameCol(c) ? 'allNameCol' : '',
+          isNarrowCol(c) ? 'allNarrowCol tightCol' : ''
         ].filter(Boolean).join(' ');
         return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
       }).join('');
@@ -401,19 +401,18 @@ export function createRenderer({ ui } = {}) {
       const body = (viewRows || []).map((r, i) => {
         const trCls = [r?._pulse ? 'stockPulse' : ''].filter(Boolean).join(' ');
         const tNameCls = r?._tpassive ? 'tsoftPassive' : '';
-
         return `<tr class="${esc(trCls)}">
-          <td class="seqCell tightCol allShrink" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
-          <td class="tightCol allShrink" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
+          <td class="seqCell allNarrowCol tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
+          <td class="allNarrowCol tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
 
-          <td class="tightCol allShrink sepL" title="${esc(r["Ürün Kodu (T-Soft)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (T-Soft)"] || '')}</span></td>
-          <td class="left nameCell allGrow"><span class="nm ${tNameCls}" title="${esc(r["Ürün Adı (T-Soft)"] || '')}">${esc(r["Ürün Adı (T-Soft)"] || '')}</span></td>
+          <td class="allNarrowCol tightCol sepL" title="${esc(r["Ürün Kodu (T-Soft)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (T-Soft)"] || '')}</span></td>
+          <td class="left nameCell allNameCol"><span class="nm ${tNameCls}" title="${esc(r["Ürün Adı (T-Soft)"] || '')}">${esc(r["Ürün Adı (T-Soft)"] || '')}</span></td>
 
-          <td class="tightCol allShrink sepL" title="${esc(r["Ürün Kodu (Aide)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (Aide)"] || '')}</span></td>
-          <td class="left nameCell allGrow"><span class="nm" title="${esc(r["Ürün Adı (Aide)"] || '')}">${esc(r["Ürün Adı (Aide)"] || '')}</span></td>
+          <td class="allNarrowCol tightCol sepL" title="${esc(r["Ürün Kodu (Aide)"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu (Aide)"] || '')}</span></td>
+          <td class="left nameCell allNameCol"><span class="nm" title="${esc(r["Ürün Adı (Aide)"] || '')}">${esc(r["Ürün Adı (Aide)"] || '')}</span></td>
 
-          <td class="tightCol allShrink sepL" title="${esc(fmtStockLabel(r["Stok (T-Soft)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (T-Soft)"]))}</span></td>
-          <td class="tightCol allShrink" title="${esc(fmtStockLabel(r["Stok (Aide)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (Aide)"]))}</span></td>
+          <td class="allNarrowCol tightCol sepL" title="${esc(fmtStockLabel(r["Stok (T-Soft)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (T-Soft)"]))}</span></td>
+          <td class="allNarrowCol tightCol" title="${esc(fmtStockLabel(r["Stok (Aide)"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok (Aide)"]))}</span></td>
         </tr>`;
       }).join('');
 
@@ -437,20 +436,20 @@ export function createRenderer({ ui } = {}) {
 
           const headU = colsU.map((c) => {
             const cls = [
-              (c === "Ürün Kodu") ? 'sepL allShrink' : '',
-              (c === "Stok") ? 'sepL allShrink' : '',
-              (c === "Sıra" || c === "Marka") ? 'tightCol allShrink' : '',
-              (c === "Ürün Adı") ? 'unmGrow' : ''
+              (c === "Ürün Kodu") ? 'sepL' : '',
+              (c === "Stok") ? 'sepL' : '',
+              (c === "Ürün Adı") ? 'allNameCol' : '',
+              (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'allNarrowCol tightCol' : ''
             ].filter(Boolean).join(' ');
             return `<th class="${cls}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
           }).join('');
 
           const bodyU = (arr || []).map((r, i) => `<tr>
-            <td class="seqCell tightCol allShrink" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
-            <td class="tightCol allShrink" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
-            <td class="tightCol allShrink sepL" title="${esc(r["Ürün Kodu"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu"] || '')}</span></td>
-            <td class="left nameCell unmGrow"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
-            <td class="tightCol allShrink sepL" title="${esc(fmtStockLabel(r["Stok"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok"]))}</span></td>
+            <td class="seqCell allNarrowCol tightCol" title="${esc(String(i + 1))}"><span class="cellTxt">${esc(String(i + 1))}</span></td>
+            <td class="allNarrowCol tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
+            <td class="allNarrowCol tightCol sepL" title="${esc(r["Ürün Kodu"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu"] || '')}</span></td>
+            <td class="left nameCell allNameCol"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
+            <td class="allNarrowCol tightCol sepL" title="${esc(fmtStockLabel(r["Stok"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok"]))}</span></td>
           </tr>`).join('');
 
           $(id).innerHTML = `<thead>${topHead}<tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
