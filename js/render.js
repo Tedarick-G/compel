@@ -1,3 +1,4 @@
+// ./js/render.js
 import { esc, stockToNumber } from './utils.js';
 import { COLS } from './match.js';
 const $ = id => document.getElementById(id);
@@ -253,7 +254,9 @@ export function createRenderer({ ui } = {}) {
       $('t1').innerHTML = colGrp(W1) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
       const sec = $('unmatchedSection'), ut = $('unmatchedTitle');
-      ut && (ut.textContent = 'Compel, T-Soft ve Aide Eşleşmeyen Ürünler Listesi');
+      // ✅ Eski başlık geri
+      ut && (ut.textContent = 'T-Soft ve Aide Eşleşmeyenler');
+
       const U = Array.isArray(Ux) ? Ux : [];
       if (!U.length) { sec && (sec.style.display = 'none'); }
       else {
