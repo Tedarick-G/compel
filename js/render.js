@@ -77,6 +77,25 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
 
 /* ✅ Split unmatched başlıkları ortalı */
 .unmHead{font-weight:1300; text-align:center!important; letter-spacing:.01em;}
+
+/* =========================================================
+   ✅ İSTENEN: ALL modunda Sıra/Marka/Ürün Kodu sütunları
+   içeriği kadar dar olsun (kırpma yok, alt satıra düşme yok)
+   Yöntem:
+   - ALL modunda tabloları table-layout:auto yap
+   - gerçek (natural) genişliği ölçüp fitTableToWrap ile scaleX uygula
+   - ilgili hücrelerde ellipsis/overflow kapat
+   ========================================================= */
+#t1.allAuto, #t2L.allAuto, #t2R.allAuto{
+  table-layout:auto!important;
+  width:auto!important;
+}
+#t1.allAuto td, #t1.allAuto th,
+#t2L.allAuto td, #t2L.allAuto th,
+#t2R.allAuto td, #t2R.allAuto th{
+  overflow:visible!important;
+  text-overflow:clip!important;
+}
 `;
   document.head.appendChild(st);
 }
@@ -113,20 +132,14 @@ function fitHeader(tableId) {
 }
 
 /**
- * ✅ Split listelerde (t2L/t2R) scaleX yapma -> “yarım yarım” görünmesin.
- * Ana tabloda fit devam.
+ * ✅ Tablonun gerçek genişliğini ölçüp wrap'e sığdır (scaleX).
+ * - Artık t2L/t2R için de çalışır (ALL split listelerde kırpma olmasın).
  */
 function fitTableToWrap(tableId) {
   const t = $(tableId);
   if (!t) return;
   const wrap = t.closest('.tableWrap') || t.parentElement;
   if (!wrap) return;
-
-  if (tableId === 't2L' || tableId === 't2R') {
-    t.style.transform = 'scaleX(1)';
-    wrap.style.overflowX = 'hidden';
-    return;
-  }
 
   t.style.transform = 'scaleX(1)';
 
@@ -188,9 +201,14 @@ const fmtStockLabel = n => {
 export function createRenderer({ ui } = {}) {
   return {
     render(R, Ux, depotReady) {
+      // Compel modu -> ALL auto class'larını temizle
+      const t1 = $('t1'); t1 && t1.classList.remove('allAuto');
+      const t2L = $('t2L'); t2L && t2L.classList.remove('allAuto');
+      const t2R = $('t2R'); t2R && t2R.classList.remove('allAuto');
+
       const splitSec = $('unmatchedSplitSection'); splitSec && (splitSec.style.display = 'none');
-      const t2L = $('t2L'); t2L && (t2L.innerHTML = '');
-      const t2R = $('t2R'); t2R && (t2R.innerHTML = '');
+      const _t2L = $('t2L'); _t2L && (_t2L.innerHTML = '');
+      const _t2R = $('t2R'); _t2R && (_t2R.innerHTML = '');
 
       const T1_SEP_LEFT = new Set(["Ürün Kodu (Compel)", "Ürün Kodu (T-Soft)", "Stok (Compel)", "EAN (Compel)"]);
       const tight = c => (c === "Ürün Kodu (Compel)" || c === "Ürün Kodu (T-Soft)");
@@ -254,7 +272,6 @@ export function createRenderer({ ui } = {}) {
       $('t1').innerHTML = colGrp(W1) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
       const sec = $('unmatchedSection'), ut = $('unmatchedTitle');
-      // ✅ Eski başlık geri
       ut && (ut.textContent = 'T-Soft ve Aide Eşleşmeyenler');
 
       const U = Array.isArray(Ux) ? Ux : [];
@@ -334,6 +351,11 @@ export function createRenderer({ ui } = {}) {
     },
 
     renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}, opts = {}) {
+      // ✅ ALL modunda: auto layout class’larını aktif et
+      const t1 = $('t1'); t1 && t1.classList.add('allAuto');
+      const t2L = $('t2L'); t2L && t2L.classList.add('allAuto');
+      const t2R = $('t2R'); t2R && t2R.classList.add('allAuto');
+
       const secOld = $('unmatchedSection'); secOld && (secOld.style.display = 'none');
       const t2 = $('t2'); t2 && (t2.innerHTML = '');
 
@@ -353,8 +375,6 @@ export function createRenderer({ ui } = {}) {
         c === "Ürün Kodu (T-Soft)" || c === "Ürün Kodu (Aide)" ||
         c === "Stok (T-Soft)" || c === "Stok (Aide)"
       );
-
-      const W = [6, 12, 14, 22, 14, 22, 5, 5];
 
       const head = COLS_ALL.map(c => {
         const cls = [SEP_LEFT.has(c) ? 'sepL' : '', tightCol(c) ? 'tightCol' : ''].filter(Boolean).join(' ');
@@ -379,7 +399,10 @@ export function createRenderer({ ui } = {}) {
         </tr>`;
       }).join('');
 
-      $('t1').innerHTML = colGrp(W) + `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+      // ✅ ALL modunda colgroup (yüzde) KALDIRILDI:
+      // table-layout:auto ile kolonlar içeriğe göre minimum olacak,
+      // sonra fitTableToWrap scaleX ile wrap’e sığdıracak.
+      $('t1').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 
       const splitSec = $('unmatchedSplitSection');
       const title = $('unmatchedSplitTitle');
@@ -393,7 +416,6 @@ export function createRenderer({ ui } = {}) {
       } else {
         splitSec && (splitSec.style.display = '');
         const colsU = ["Sıra", "Marka", "Ürün Kodu", "Ürün Adı", "Stok"];
-        const WU = [8, 18, 18, 44, 12];
 
         const mkTable = (id, arr, label) => {
           const topHead = `<tr><th class="unmHead" colspan="${colsU.length}" title="${esc(label)}">${esc(label)}</th></tr>`;
@@ -401,7 +423,6 @@ export function createRenderer({ ui } = {}) {
           const headU = colsU.map((c) => {
             const cls = [
               (c === "Ürün Kodu") ? 'sepL' : '',
-              /* ✅ Ürün Adı ile Stok arasına sepL => Stok sütunu sepL */
               (c === "Stok") ? 'sepL' : '',
               (c === "Sıra" || c === "Marka" || c === "Ürün Kodu" || c === "Stok") ? 'tightCol' : ''
             ].filter(Boolean).join(' ');
@@ -413,13 +434,11 @@ export function createRenderer({ ui } = {}) {
             <td class="tightCol" title="${esc(r["Marka"] || '')}"><span class="cellTxt">${esc(r["Marka"] || '')}</span></td>
             <td class="tightCol sepL" title="${esc(r["Ürün Kodu"] || '')}"><span class="cellTxt">${esc(r["Ürün Kodu"] || '')}</span></td>
             <td class="left nameCell"><span class="nm" title="${esc(r["Ürün Adı"] || '')}">${esc(r["Ürün Adı"] || '')}</span></td>
-            <!-- ✅ Stok hücresi de sepL -->
             <td class="tightCol sepL" title="${esc(fmtStockLabel(r["Stok"]))}"><span class="cellTxt">${esc(fmtStockLabel(r["Stok"]))}</span></td>
           </tr>`).join('');
 
-          $(id).innerHTML =
-            colGrp(WU) +
-            `<thead>${topHead}<tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
+          // ✅ split unmatched’larda da colgroup kaldırıldı (auto layout + scaleX)
+          $(id).innerHTML = `<thead>${topHead}<tr>${headU}</tr></thead><tbody>${bodyU}</tbody>`;
         };
 
         mkTable('t2L', unmatchedTsoft, "T-Soft'ta Aide ile Eşleşmeyen Ürünler");
