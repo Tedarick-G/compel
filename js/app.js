@@ -1545,9 +1545,117 @@ $("aideSaveToday")?.addEventListener("change", (e) => {
 // =========================
 // 1) COMPEL MODE
 // =========================
+
+// ✅ (Yeni) Compel modunda alttaki "T-Soft ve Aide Eşleşmeyenler" listesini üret
+function codeNormCompelUnm(s) {
+  return (s ?? "").toString().replace(/\u00A0/g, " ").trim().replace(/\s+/g, " ").toLocaleUpperCase(TR);
+}
+function codeAltCompelUnm(n) {
+  const k = codeNormCompelUnm(n);
+  if (!k || !/^[0-9]+$/.test(k)) return "";
+  return k.replace(/^0+(?=\d)/, "");
+}
+
+function buildSelectedBrandsNormSet_CompelMode() {
+  const out = new Set();
+  const selected = BRANDS.filter((x) => SELECTED.has(x.id));
+  for (const b of selected) {
+    const bn = normBrand(b?.name || "");
+    bn && out.add(bn);
+  }
+  return out;
+}
+
+// R içinden (eşleşmiş satırlardan) marka -> tsoft sup kod seti üret
+function buildTsoftSupByBrandFromResults(R) {
+  const out = new Map(); // brNorm -> Set(code)
+  for (const row of R || []) {
+    if (!row?._m) continue;
+    const brNorm = normBrand(row["Marka"] || "");
+    if (!brNorm) continue;
+    const sup = T(row["Ürün Kodu (T-Soft)"] || "");
+    if (!sup) continue;
+    const c1 = codeNormCompelUnm(sup);
+    const c2 = codeAltCompelUnm(c1);
+    out.has(brNorm) || out.set(brNorm, new Set());
+    const set = out.get(brNorm);
+    c1 && set.add(c1);
+    c2 && set.add(c2);
+  }
+  return out;
+}
+
+function buildUnmatchedListForCompel({ R = [], U = [], UT = [] } = {}) {
+  const out = [];
+
+  // 1) Compel tarafında eşleşmeyen ürünler (matcher.U): Compel dolu, diğerleri boş
+  for (const r of U || []) {
+    out.push({
+      Marka: r["Marka"] || "",
+      "Compel Ürün Kodu": r["Ürün Kodu (Compel)"] || "",
+      "Compel Ürün Adı": r["Ürün Adı (Compel)"] || "",
+      "T-Soft Ürün Kodu": "",
+      "T-Soft Ürün Adı": "",
+      "Aide Ürün Kodu": "",
+      "Aide Ürün Adı": "",
+      _clink: r._clink || "",
+      _pulseC: true,
+      _cstokraw: r._s1raw || "",
+    });
+  }
+
+  // 2) T-Soft’ta olup Compel ile eşleşmeyen (matcher.UT): T-Soft dolu
+  for (const r of UT || []) {
+    const tCode = T(r._sup || "") || T(r._ws || "");
+    out.push({
+      Marka: r["Marka"] || "",
+      "Compel Ürün Kodu": "",
+      "Compel Ürün Adı": "",
+      "T-Soft Ürün Kodu": tCode,
+      "T-Soft Ürün Adı": r["T-Soft Ürün Adı"] || "",
+      "Aide Ürün Kodu": "",
+      "Aide Ürün Adı": "",
+      _seo: r._seo || "",
+      _taktif: r._aktif,
+      _tstok: r._stokraw ? stockToNumber(r._stokraw, { source: "products" }) : 0,
+      _tstokraw: r._stokraw || "",
+    });
+  }
+
+  // 3) Aide’de olup T-Soft ile eşleşmeyen: depot.unmatchedRows()
+  try {
+    if (depot?.isReady?.()) {
+      const brandsNormSet = buildSelectedBrandsNormSet_CompelMode();
+      const tsoftSupByBrand = buildTsoftSupByBrandFromResults(R);
+      const depUnm = depot.unmatchedRows({ brandsNormSet, tsoftSupByBrand }) || [];
+      for (const r of depUnm) {
+        out.push({
+          Marka: r["Marka"] || "",
+          "Compel Ürün Kodu": "",
+          "Compel Ürün Adı": "",
+          "T-Soft Ürün Kodu": "",
+          "T-Soft Ürün Adı": "",
+          "Aide Ürün Kodu": r["Aide Ürün Kodu"] || "",
+          "Aide Ürün Adı": r["Aide Ürün Adı"] || r["Depo Ürün Adı"] || "",
+          _dstok: Number(r._dnum || 0),
+          _pulseD: Number(r._dnum || 0) > 0,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("depot unmatched build fail", e);
+  }
+
+  // Sıra sütunu renderer içinde de basılıyor ama burada da stabilize edelim
+  out.forEach((r, i) => (r["Sıra"] = String(i + 1)));
+
+  return out;
+}
+
 function refreshCompel() {
-  const { R } = matcher.getResults();
-  const Ux = [];
+  const { R, U, UT } = matcher.getResults();
+  // ✅ Eskiden kaybolan listeyi tekrar veriyoruz
+  const Ux = buildUnmatchedListForCompel({ R, U, UT });
   renderer.render(R, Ux, depot.isReady());
   applySupplierUi();
 }
