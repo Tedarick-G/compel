@@ -1,5 +1,5 @@
 // ./js/app.js
-// ✅ Orchestrator + T-Soft modal fix eklendi
+// ✅ Orchestrator (tamamlanmış) + Guide state resolver + T-Soft modal fix
 
 import { TR } from "./utils.js";
 import { loadBrands, dailyMeta, dailyGet, dailySave, scanCompel } from "./api.js";
@@ -9,7 +9,7 @@ import { createRenderer } from "./render.js";
 
 import { AIDE_BRAND_SEED, TSOFT_BRAND_SEED } from "./brands.seed.js";
 
-// NEW modules
+// modules
 import { createUIChips } from "./ui/chips.js";
 import { createGuide } from "./ui/guide.js";
 import { createDaily } from "./ui/daily.js";
@@ -17,8 +17,6 @@ import { createBrandUI } from "./ui/brand.js";
 import { createCompelMode } from "./modes/compel.js";
 import { createAllMode } from "./modes/all.js";
 import { toTitleCaseTR, buildCanonicalBrandList } from "./helpers/text.js";
-
-// ✅ NEW: T-Soft popover/modal
 import { createTsoftModal } from "./ui/tsoftModal.js";
 
 const $ = (id) => document.getElementById(id);
@@ -44,37 +42,6 @@ const ui = createUIChips({ $, TR });
 const guide = createGuide({ $, TR, getActiveSupplier: () => ACTIVE_SUPPLIER });
 
 // =========================
-// Depot + Matcher + Renderer
-// =========================
-const depot = createDepot({
-  ui,
-  normBrand,
-  onDepotLoaded: async () => {
-    daily.clearSelection("aide");
-    daily.paint();
-
-    if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL && matcher.hasData()) {
-      matcher.runMatch();
-      compelMode.refresh();
-    }
-
-    applySupplierUi();
-
-    await daily.trySaveIfChecked({
-      kind: "aide",
-      getRaw: () => depot.getLastRaw() || "",
-    });
-  },
-});
-
-const matcher = createMatcher({
-  getDepotAgg: () => depot.agg,
-  isDepotReady: () => depot.isReady(),
-});
-
-const renderer = createRenderer({ ui });
-
-// =========================
 // Daily
 // =========================
 const daily = createDaily({
@@ -87,7 +54,7 @@ const daily = createDaily({
 });
 
 // =========================
-// ✅ T-Soft Modal (FIX)
+// ✅ T-Soft Modal (popover) — FIX
 // =========================
 createTsoftModal({ $ });
 
@@ -113,6 +80,42 @@ const brandUI = createBrandUI({
       aideSeed: AIDE_BRAND_SEED,
     }),
 });
+
+// =========================
+// Depot + Matcher + Renderer
+// =========================
+const depot = createDepot({
+  ui,
+  normBrand,
+  onDepotLoaded: async () => {
+    // Aide yüklenince daily seçimini sıfırla
+    daily.clearSelection("aide");
+    daily.paint();
+
+    // Compel modunda veri varsa refresh
+    if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL && matcher.hasData()) {
+      matcher.runMatch();
+      compelMode.refresh();
+    }
+
+    applySupplierUi();
+
+    // “Bugünün verisi olarak kaydet” (Aide)
+    await daily.trySaveIfChecked({
+      kind: "aide",
+      getRaw: () => depot.getLastRaw() || "",
+    });
+
+    guide.updateFromState();
+  },
+});
+
+const matcher = createMatcher({
+  getDepotAgg: () => depot.agg,
+  isDepotReady: () => depot.isReady(),
+});
+
+const renderer = createRenderer({ ui });
 
 // =========================
 // Modes
@@ -146,6 +149,29 @@ const allMode = createAllMode({
 });
 
 // =========================
+// Guide step resolver (tamam)
+// =========================
+function hasTsoftReady() {
+  const file = $("f2")?.files?.[0];
+  const sel = daily.getSelected();
+  return !!file || !!String(sel?.tsoft || "").trim();
+}
+function hasAideReady() {
+  const sel = daily.getSelected();
+  return depot?.isReady?.() || !!String(sel?.aide || "").trim();
+}
+function resolveGuideStep() {
+  if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) return "done";
+
+  const selectedCount = brandUI.getSelectedIds().size;
+  if (!selectedCount) return "brand";
+  if (!hasTsoftReady()) return "tsoft";
+  if (!hasAideReady()) return "aide";
+  return "list";
+}
+guide.setStateResolver(resolveGuideStep);
+
+// =========================
 // Supplier dropdown
 // =========================
 function applySupplierUi() {
@@ -170,7 +196,7 @@ function applySupplierUi() {
   }
 
   brandUI.applySupplierUi();
-  guide.update();
+  guide.updateFromState();
 }
 
 async function initBrandsCompel() {
@@ -232,7 +258,7 @@ function initSupplierDropdown() {
     const lab = $("supplierLabel");
     lab && (lab.textContent = `1) Tedarikçi: ${name}`);
 
-    // reset
+    // reset: seçimler + listeler
     brandUI.resetAllSelections();
     compelMode.reset();
     allMode.reset();
@@ -299,6 +325,7 @@ async function handleGo() {
 
   if (!brandUI.getSelectedIds().size) {
     alert("Lütfen bir marka seçin");
+    guide.updateFromState();
     return;
   }
 
@@ -307,6 +334,7 @@ async function handleGo() {
   else ok = await compelMode.generate();
 
   if (ok) guide.setStep("done");
+  else guide.updateFromState();
 }
 
 $("go") && ($("go").onclick = handleGo);
@@ -327,7 +355,9 @@ else if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) {
   brandUI.setBrandPrefix("Tüm Markalar");
   brandUI.setBrands(brandUI.buildAllBrandsWithIds());
   brandUI.render();
-} else brandUI.render();
+} else {
+  brandUI.render();
+}
 
 daily.refreshMeta();
 guide.updateFromState();
