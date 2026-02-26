@@ -1,8 +1,5 @@
 // ./js/app.js
-// ✅ Bu dosya artık “orchestrator”: büyük bloklar modüllere taşındı.
-// Not: Bu dosya, aşağıdaki yeni modüller eklenince çalışır:
-// ./js/ui/chips.js, ./js/ui/daily.js, ./js/ui/guide.js, ./js/ui/brand.js
-// ./js/modes/compel.js, ./js/modes/all.js, ./js/helpers/text.js
+// ✅ Orchestrator + T-Soft modal fix eklendi
 
 import { TR } from "./utils.js";
 import { loadBrands, dailyMeta, dailyGet, dailySave, scanCompel } from "./api.js";
@@ -12,7 +9,7 @@ import { createRenderer } from "./render.js";
 
 import { AIDE_BRAND_SEED, TSOFT_BRAND_SEED } from "./brands.seed.js";
 
-// NEW modules (gelecek dosyalar)
+// NEW modules
 import { createUIChips } from "./ui/chips.js";
 import { createGuide } from "./ui/guide.js";
 import { createDaily } from "./ui/daily.js";
@@ -20,6 +17,9 @@ import { createBrandUI } from "./ui/brand.js";
 import { createCompelMode } from "./modes/compel.js";
 import { createAllMode } from "./modes/all.js";
 import { toTitleCaseTR, buildCanonicalBrandList } from "./helpers/text.js";
+
+// ✅ NEW: T-Soft popover/modal
+import { createTsoftModal } from "./ui/tsoftModal.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,11 +50,9 @@ const depot = createDepot({
   ui,
   normBrand,
   onDepotLoaded: async () => {
-    // daily tarafında Aide seçimini sıfırla + UI boya
     daily.clearSelection("aide");
     daily.paint();
 
-    // Compel modunda veri varsa refresh
     if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL && matcher.hasData()) {
       matcher.runMatch();
       compelMode.refresh();
@@ -62,7 +60,6 @@ const depot = createDepot({
 
     applySupplierUi();
 
-    // “Bugünün verisi olarak kaydet” (Aide)
     await daily.trySaveIfChecked({
       kind: "aide",
       getRaw: () => depot.getLastRaw() || "",
@@ -86,9 +83,13 @@ const daily = createDaily({
   apiBase: API_BASE,
   api: { dailyMeta, dailyGet, dailySave },
   ui,
-  // Modal kapatma butonları app.js’te değil daily modülünde yönetilecek
   onAfterPick: () => guide.updateFromState(),
 });
+
+// =========================
+// ✅ T-Soft Modal (FIX)
+// =========================
+createTsoftModal({ $ });
 
 // =========================
 // Brand UI
@@ -105,12 +106,12 @@ const brandUI = createBrandUI({
   suppliers: SUPPLIERS,
   getActiveSupplier: () => ACTIVE_SUPPLIER,
   setActiveSupplier: (x) => (ACTIVE_SUPPLIER = x),
-  // canonical list builder ALL modunda kullanılıyor
-  buildAllBrands: () => buildCanonicalBrandList({
-    normBrand,
-    tsoftSeed: TSOFT_BRAND_SEED,
-    aideSeed: AIDE_BRAND_SEED,
-  }),
+  buildAllBrands: () =>
+    buildCanonicalBrandList({
+      normBrand,
+      tsoftSeed: TSOFT_BRAND_SEED,
+      aideSeed: AIDE_BRAND_SEED,
+    }),
 });
 
 // =========================
@@ -141,12 +142,11 @@ const allMode = createAllMode({
   daily,
   guide,
   normBrand,
-  stockSeed: { tsoftSeed: TSOFT_BRAND_SEED, aideSeed: AIDE_BRAND_SEED },
   toTitleCaseTR,
 });
 
 // =========================
-// Supplier dropdown (küçültülmüş)
+// Supplier dropdown
 // =========================
 function applySupplierUi() {
   const go = $("go");
@@ -160,7 +160,6 @@ function applySupplierUi() {
     }
   }
 
-  // infoBox hide/show & status
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
     ui.setStatus(
       "Tedarikçi Akalın entegre edilmedi. Lütfen farklı bir tedarikçi seçin.",
@@ -330,5 +329,5 @@ else if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) {
   brandUI.render();
 } else brandUI.render();
 
-daily.refreshMeta(); // dailyMeta çek + UI boya
+daily.refreshMeta();
 guide.updateFromState();
