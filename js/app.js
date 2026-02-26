@@ -1,35 +1,323 @@
 // ./js/app.js
-// ✅ Bootstrap: asıl uygulamayı dinamik import eder.
-// ✅ Herhangi bir import/JS hatasında ekrana (brandStatus + stChip) yazar.
+// ✅ Dinamik import yok. Direkt uygulamayı başlatır.
+// (app.main.js dosyası varsa kalsın, zararı yok.)
 
-(function () {
-  const setText = (id, txt) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = String(txt || "");
-    el.title = el.textContent;
-  };
+import { TR } from "./utils.js";
+import { loadBrands, dailyMeta, dailyGet, dailySave, scanCompel } from "./api.js";
+import { createMatcher, normBrand } from "./match.js";
+import { createDepot } from "./depot.js";
+import { createRenderer } from "./render.js";
 
-  const showFatal = (err) => {
-    const msg = String(err?.message || err || "Bilinmeyen hata");
-    const stack = String(err?.stack || "");
-    setText("brandStatus", `JS Hatası: ${msg}`);
-    const st = document.getElementById("stChip");
-    if (st) {
-      st.style.display = "";
-      st.textContent = "Kritik hata";
-      st.title = stack ? stack : msg;
-      st.className = "chip bad";
+import { AIDE_BRAND_SEED, TSOFT_BRAND_SEED } from "./brands.seed.js";
+
+import { createUIChips } from "./ui/chips.js";
+import { createGuide } from "./ui/guide.js";
+import { createDaily } from "./ui/daily.js";
+import { createBrandUI } from "./ui/brand.js";
+import { createCompelMode } from "./modes/compel.js";
+import { createAllMode } from "./modes/all.js";
+import { toTitleCaseTR, buildCanonicalBrandList } from "./helpers/text.js";
+
+const $ = (id) => document.getElementById(id);
+
+const API_BASE = "https://robot-workstation.tvkapora.workers.dev";
+
+const SUPPLIERS = {
+  COMPEL: "Compel",
+  ALL: "Tüm Markalar",
+  AKALIN: "Akalın",
+};
+
+let ACTIVE_SUPPLIER = SUPPLIERS.COMPEL;
+
+// UI
+const ui = createUIChips({ $, TR });
+const guide = createGuide({ $, TR, getActiveSupplier: () => ACTIVE_SUPPLIER });
+
+const daily = createDaily({
+  $,
+  TR,
+  apiBase: API_BASE,
+  api: { dailyMeta, dailyGet, dailySave },
+  ui,
+  onAfterPick: () => guide.updateFromState(),
+});
+
+// Depot -> Matcher sırası kritik
+const depot = createDepot({
+  ui,
+  normBrand,
+  onDepotLoaded: async () => {
+    daily.clearSelection("aide");
+    daily.paint();
+
+    if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL && matcher.hasData()) {
+      matcher.runMatch();
+      compelMode.refresh();
     }
-    // detayları title’a basıyoruz
-    const bs = document.getElementById("brandStatus");
-    if (bs && stack) bs.title = stack;
+
+    applySupplierUi();
+
+    await daily.trySaveIfChecked({
+      kind: "aide",
+      getRaw: () => depot.getLastRaw() || "",
+    });
+
+    guide.updateFromState();
+  },
+});
+
+const matcher = createMatcher({
+  getDepotAgg: () => depot.agg,
+  isDepotReady: () => depot.isReady(),
+});
+
+const renderer = createRenderer({ ui });
+
+// Brand UI
+let COMPEL_BRANDS_CACHE = null;
+
+const brandUI = createBrandUI({
+  $,
+  TR,
+  ui,
+  guide,
+  normBrand,
+  toTitleCaseTR,
+  suppliers: SUPPLIERS,
+  getActiveSupplier: () => ACTIVE_SUPPLIER,
+  setActiveSupplier: (x) => (ACTIVE_SUPPLIER = x),
+  buildAllBrands: () =>
+    buildCanonicalBrandList({
+      normBrand,
+      tsoftSeed: TSOFT_BRAND_SEED,
+      aideSeed: AIDE_BRAND_SEED,
+    }),
+});
+
+// Modes
+const compelMode = createCompelMode({
+  $,
+  TR,
+  apiBase: API_BASE,
+  api: { scanCompel, dailyGet, dailySave },
+  ui,
+  depot,
+  matcher,
+  renderer,
+  brandUI,
+  daily,
+  guide,
+  normBrand,
+});
+
+const allMode = createAllMode({
+  $,
+  TR,
+  ui,
+  depot,
+  renderer,
+  brandUI,
+  daily,
+  guide,
+  normBrand,
+  toTitleCaseTR,
+});
+
+// Guide resolver
+guide.setStateResolver(() => {
+  if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) return "done";
+
+  const selCount = brandUI.getSelectedIds().size;
+  if (!selCount) return "brand";
+
+  const sel = daily.getSelected();
+  const hasTsoftFile = !!$("f2")?.files?.[0];
+  const hasTsoftReady = hasTsoftFile || !!String(sel.tsoft || "").trim();
+  if (!hasTsoftReady) return "tsoft";
+
+  const hasAideReady = depot.isReady() || !!String(sel.aide || "").trim();
+  if (!hasAideReady) return "aide";
+
+  return "list";
+});
+
+function applySupplierUi() {
+  const go = $("go");
+  if (go) {
+    if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
+      go.classList.add("wip");
+      go.title = "Yapım Aşamasında";
+    } else {
+      go.classList.remove("wip");
+      go.title = "Listele";
+    }
+  }
+
+  if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
+    ui.setStatus(
+      "Tedarikçi Akalın entegre edilmedi. Lütfen farklı bir tedarikçi seçin.",
+      "bad"
+    );
+  } else {
+    ui.setStatus("Hazır", "ok");
+  }
+
+  brandUI.applySupplierUi();
+  guide.update();
+}
+
+async function initBrandsCompel() {
+  brandUI.setBrandPrefix("Hazır");
+  brandUI.setBrandStatusText("Markalar yükleniyor…");
+
+  try {
+    const data = await loadBrands(API_BASE);
+    COMPEL_BRANDS_CACHE = data;
+    if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) brandUI.setBrands(data);
+  } catch (e) {
+    console.error(e);
+    if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) {
+      brandUI.setBrandStatusText("Markalar yüklenemedi (API).");
+    }
+  } finally {
+    brandUI.render();
+    applySupplierUi();
+    guide.updateFromState();
+  }
+}
+
+function initSupplierDropdown() {
+  const wrap = $("supplierWrap"),
+    btn = $("supplierBtn"),
+    menu = $("supplierMenu"),
+    itC = $("supplierCompelItem"),
+    itAll = $("supplierAllItem"),
+    itA = $("supplierAkalinItem");
+
+  if (!wrap || !btn || !menu || !itC || !itAll || !itA) return;
+
+  const open = () => {
+    menu.classList.add("show");
+    menu.setAttribute("aria-hidden", "false");
+    btn.setAttribute("aria-expanded", "true");
+  };
+  const close = () => {
+    menu.classList.remove("show");
+    menu.setAttribute("aria-hidden", "true");
+    btn.setAttribute("aria-expanded", "false");
   };
 
-  // global yakalayıcılar
-  addEventListener("error", (e) => showFatal(e?.error || e?.message || e));
-  addEventListener("unhandledrejection", (e) => showFatal(e?.reason || e));
+  const paint = () => {
+    const mk = (el, name) => {
+      const sel = ACTIVE_SUPPLIER === name;
+      el.setAttribute("aria-disabled", sel ? "true" : "false");
+      el.textContent = sel ? `${name} (seçili)` : name;
+    };
+    mk(itC, SUPPLIERS.COMPEL);
+    mk(itAll, SUPPLIERS.ALL);
+    mk(itA, SUPPLIERS.AKALIN);
+  };
 
-  // Asıl uygulama
-  import("./app.main.js").catch(showFatal);
-})();
+  const setSupplier = async (name) => {
+    if (!name || name === ACTIVE_SUPPLIER) return close();
+
+    ACTIVE_SUPPLIER = name;
+    const lab = $("supplierLabel");
+    lab && (lab.textContent = `1) Tedarikçi: ${name}`);
+
+    brandUI.resetAllSelections();
+    compelMode.reset();
+    allMode.reset();
+    depot.reset();
+    matcher.resetAll();
+
+    if (name === SUPPLIERS.AKALIN) {
+      brandUI.setBrandPrefix("Akalın");
+      brandUI.setBrands([]);
+    } else if (name === SUPPLIERS.ALL) {
+      brandUI.setBrandPrefix("Tüm Markalar");
+      brandUI.setBrands(brandUI.buildAllBrandsWithIds());
+    } else {
+      brandUI.setBrandPrefix("Hazır");
+      if (COMPEL_BRANDS_CACHE?.length) brandUI.setBrands(COMPEL_BRANDS_CACHE);
+      else await initBrandsCompel();
+    }
+
+    paint();
+    close();
+    brandUI.render();
+    applySupplierUi();
+    guide.setStep("brand");
+    guide.updateFromState();
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    paint();
+    menu.classList.contains("show") ? close() : open();
+  });
+
+  itC.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (itC.getAttribute("aria-disabled") === "true") return;
+    void setSupplier(SUPPLIERS.COMPEL);
+  });
+
+  itAll.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (itAll.getAttribute("aria-disabled") === "true") return;
+    void setSupplier(SUPPLIERS.ALL);
+  });
+
+  itA.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (itA.getAttribute("aria-disabled") === "true") return;
+    void setSupplier(SUPPLIERS.AKALIN);
+  });
+
+  document.addEventListener("click", (e) => !wrap.contains(e.target) && close());
+  addEventListener("keydown", (e) => e.key === "Escape" && close());
+  paint();
+}
+
+async function handleGo() {
+  if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
+    applySupplierUi();
+    return;
+  }
+
+  if (!brandUI.getSelectedIds().size) {
+    alert("Lütfen bir marka seçin");
+    return;
+  }
+
+  const ok =
+    ACTIVE_SUPPLIER === SUPPLIERS.ALL
+      ? await allMode.generate()
+      : await compelMode.generate();
+
+  if (ok) guide.setStep("done");
+}
+
+$("go") && ($("go").onclick = handleGo);
+
+// init
+initSupplierDropdown();
+brandUI.ensureListHeader();
+brandUI.ensureSearchBar();
+
+guide.setStep("brand");
+applySupplierUi();
+
+if (ACTIVE_SUPPLIER === SUPPLIERS.COMPEL) initBrandsCompel();
+else if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) {
+  brandUI.setBrandPrefix("Tüm Markalar");
+  brandUI.setBrands(brandUI.buildAllBrandsWithIds());
+  brandUI.render();
+} else {
+  brandUI.render();
+}
+
+daily.refreshMeta();
+guide.updateFromState();
