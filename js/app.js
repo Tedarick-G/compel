@@ -1,9 +1,4 @@
 // ./js/app.js
-// ✅ Bu dosya artık “orchestrator”: büyük bloklar modüllere taşındı.
-// Not: Bu dosya, aşağıdaki yeni modüller eklenince çalışır:
-// ./js/ui/chips.js, ./js/ui/daily.js, ./js/ui/guide.js, ./js/ui/brand.js
-// ./js/modes/compel.js, ./js/modes/all.js, ./js/helpers/text.js
-
 import { TR } from "./utils.js";
 import { loadBrands, dailyMeta, dailyGet, dailySave, scanCompel } from "./api.js";
 import { createMatcher, normBrand } from "./match.js";
@@ -12,7 +7,6 @@ import { createRenderer } from "./render.js";
 
 import { AIDE_BRAND_SEED, TSOFT_BRAND_SEED } from "./brands.seed.js";
 
-// NEW modules (gelecek dosyalar)
 import { createUIChips } from "./ui/chips.js";
 import { createGuide } from "./ui/guide.js";
 import { createDaily } from "./ui/daily.js";
@@ -34,23 +28,27 @@ const SUPPLIERS = {
 let ACTIVE_SUPPLIER = SUPPLIERS.COMPEL;
 
 // =========================
-// UI (chips/status)
+// UI
 // =========================
 const ui = createUIChips({ $, TR });
-
-// =========================
-// Guide
-// =========================
 const guide = createGuide({ $, TR, getActiveSupplier: () => ACTIVE_SUPPLIER });
 
+const daily = createDaily({
+  $,
+  TR,
+  apiBase: API_BASE,
+  api: { dailyMeta, dailyGet, dailySave },
+  ui,
+  onAfterPick: () => guide.updateFromState(),
+});
+
 // =========================
-// Depot + Matcher + Renderer
+// Depot -> Matcher sırası KRİTİK
 // =========================
 const depot = createDepot({
   ui,
   normBrand,
   onDepotLoaded: async () => {
-    // daily tarafında Aide seçimini sıfırla + UI boya
     daily.clearSelection("aide");
     daily.paint();
 
@@ -62,33 +60,23 @@ const depot = createDepot({
 
     applySupplierUi();
 
-    // “Bugünün verisi olarak kaydet” (Aide)
+    // Aide: bugünün verisi olarak kaydet
     await daily.trySaveIfChecked({
       kind: "aide",
       getRaw: () => depot.getLastRaw() || "",
     });
+
+    guide.updateFromState();
   },
 });
 
+// ✅ matcher artık depot hazırken oluşturuluyor
 const matcher = createMatcher({
   getDepotAgg: () => depot.agg,
   isDepotReady: () => depot.isReady(),
 });
 
 const renderer = createRenderer({ ui });
-
-// =========================
-// Daily
-// =========================
-const daily = createDaily({
-  $,
-  TR,
-  apiBase: API_BASE,
-  api: { dailyMeta, dailyGet, dailySave },
-  ui,
-  // Modal kapatma butonları app.js’te değil daily modülünde yönetilecek
-  onAfterPick: () => guide.updateFromState(),
-});
 
 // =========================
 // Brand UI
@@ -105,12 +93,12 @@ const brandUI = createBrandUI({
   suppliers: SUPPLIERS,
   getActiveSupplier: () => ACTIVE_SUPPLIER,
   setActiveSupplier: (x) => (ACTIVE_SUPPLIER = x),
-  // canonical list builder ALL modunda kullanılıyor
-  buildAllBrands: () => buildCanonicalBrandList({
-    normBrand,
-    tsoftSeed: TSOFT_BRAND_SEED,
-    aideSeed: AIDE_BRAND_SEED,
-  }),
+  buildAllBrands: () =>
+    buildCanonicalBrandList({
+      normBrand,
+      tsoftSeed: TSOFT_BRAND_SEED,
+      aideSeed: AIDE_BRAND_SEED,
+    }),
 });
 
 // =========================
@@ -141,12 +129,31 @@ const allMode = createAllMode({
   daily,
   guide,
   normBrand,
-  stockSeed: { tsoftSeed: TSOFT_BRAND_SEED, aideSeed: AIDE_BRAND_SEED },
   toTitleCaseTR,
 });
 
 // =========================
-// Supplier dropdown (küçültülmüş)
+// Guide state resolver
+// =========================
+guide.setStateResolver(() => {
+  if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) return "done";
+
+  const selCount = brandUI.getSelectedIds().size;
+  if (!selCount) return "brand";
+
+  const sel = daily.getSelected();
+  const hasTsoftFile = !!$("f2")?.files?.[0];
+  const hasTsoftReady = hasTsoftFile || !!String(sel.tsoft || "").trim();
+  if (!hasTsoftReady) return "tsoft";
+
+  const hasAideReady = depot.isReady() || !!String(sel.aide || "").trim();
+  if (!hasAideReady) return "aide";
+
+  return "list";
+});
+
+// =========================
+// Supplier UI
 // =========================
 function applySupplierUi() {
   const go = $("go");
@@ -160,7 +167,6 @@ function applySupplierUi() {
     }
   }
 
-  // infoBox hide/show & status
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
     ui.setStatus(
       "Tedarikçi Akalın entegre edilmedi. Lütfen farklı bir tedarikçi seçin.",
@@ -174,9 +180,12 @@ function applySupplierUi() {
   guide.update();
 }
 
+// =========================
+// Brands init (Compel)
+// =========================
 async function initBrandsCompel() {
   brandUI.setBrandPrefix("Hazır");
-  brandUI.setLoading(true);
+  brandUI.setBrandStatusText("Markalar yükleniyor…");
 
   try {
     const data = await loadBrands(API_BASE);
@@ -188,12 +197,15 @@ async function initBrandsCompel() {
       brandUI.setBrandStatusText("Markalar yüklenemedi (API).");
     }
   } finally {
-    brandUI.setLoading(false);
     brandUI.render();
     applySupplierUi();
+    guide.updateFromState();
   }
 }
 
+// =========================
+// Supplier dropdown
+// =========================
 function initSupplierDropdown() {
   const wrap = $("supplierWrap"),
     btn = $("supplierBtn"),
@@ -240,7 +252,6 @@ function initSupplierDropdown() {
     depot.reset();
     matcher.resetAll();
 
-    // brand source
     if (name === SUPPLIERS.AKALIN) {
       brandUI.setBrandPrefix("Akalın");
       brandUI.setBrands([]);
@@ -258,6 +269,7 @@ function initSupplierDropdown() {
     brandUI.render();
     applySupplierUi();
     guide.setStep("brand");
+    guide.updateFromState();
   };
 
   btn.addEventListener("click", (e) => {
@@ -290,7 +302,7 @@ function initSupplierDropdown() {
 }
 
 // =========================
-// GO button
+// GO
 // =========================
 async function handleGo() {
   if (ACTIVE_SUPPLIER === SUPPLIERS.AKALIN) {
@@ -303,9 +315,8 @@ async function handleGo() {
     return;
   }
 
-  let ok = false;
-  if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) ok = await allMode.generate();
-  else ok = await compelMode.generate();
+  const ok =
+    ACTIVE_SUPPLIER === SUPPLIERS.ALL ? await allMode.generate() : await compelMode.generate();
 
   if (ok) guide.setStep("done");
 }
@@ -318,7 +329,7 @@ $("go") && ($("go").onclick = handleGo);
 initSupplierDropdown();
 
 brandUI.ensureListHeader();
-brandUI.ensureSearchBar();
+brandUI.ensureSearchBar(); // artık index.html içindeki barı kullanıyor
 
 guide.setStep("brand");
 applySupplierUi();
@@ -328,7 +339,9 @@ else if (ACTIVE_SUPPLIER === SUPPLIERS.ALL) {
   brandUI.setBrandPrefix("Tüm Markalar");
   brandUI.setBrands(brandUI.buildAllBrandsWithIds());
   brandUI.render();
-} else brandUI.render();
+} else {
+  brandUI.render();
+}
 
-daily.refreshMeta(); // dailyMeta çek + UI boya
+daily.refreshMeta();
 guide.updateFromState();
