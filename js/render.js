@@ -210,10 +210,6 @@ const fmtStockLabel = n => {
   return (v > 0) ? `Stok Var (${fmtNum(v)})` : `Stok Yok (${fmtNum(v)})`;
 };
 
-// ✅ İstenen: "(Kutusu Hasarlı)" geçen Compel Ürün Adı hücresi görünmesin
-const HASARLI_RE = /\(\s*Kutusu\s*Hasarlı\s*\)/i;
-const shouldHideCompelName = (txt) => HASARLI_RE.test(String(txt ?? ''));
-
 export function createRenderer({ ui } = {}) {
   return {
     render(R, Ux, depotReady) {
@@ -261,13 +257,7 @@ export function createRenderer({ ui } = {}) {
         let v = r[c] ?? '';
         if (c === "Sıra No") v = String(rowIdx + 1);
 
-        if (c === "Ürün Adı (Compel)") {
-          const hide = shouldHideCompelName(v);
-          const txt = hide ? '' : (v ?? '').toString();
-          const href = (!hide && txt) ? (r._clink || '') : '';
-          return `<td class="left nameCell">${cellName(txt, href)}</td>`;
-        }
-
+        if (c === "Ürün Adı (Compel)") return `<td class="left nameCell">${cellName(v, r._clink || '')}</td>`;
         if (c === "Ürün Adı (T-Soft)") {
           const txt = (v ?? '').toString().trim();
           return `<td class="left nameCell">${cellName(txt, r._seo || '')}</td>`;
@@ -323,12 +313,7 @@ export function createRenderer({ ui } = {}) {
         const body2 = U.map((r, i) => {
           const seq = r["Sıra"] ?? String(i + 1), brand = r["Marka"] ?? '';
           const cCode = (r["Compel Ürün Kodu"] ?? r["Ürün Kodu (Compel)"] ?? '').toString().trim();
-
-          const cNmRaw = r["Compel Ürün Adı"] ?? '';
-          const cHide = shouldHideCompelName(cNmRaw);
-          const cNm = cHide ? '' : (cNmRaw ?? '');
-
-          const cLn = r._clink || '', cPulse = !!r._pulseC;
+          const cNm = r["Compel Ürün Adı"] ?? '', cLn = r._clink || '', cPulse = !!r._pulseC;
 
           const tCode = (r["T-Soft Ürün Kodu"] ?? '').toString().trim();
           const tNm = r["T-Soft Ürün Adı"] ?? '', tLn = r._seo || '';
@@ -337,7 +322,7 @@ export function createRenderer({ ui } = {}) {
           const aNm = r["Aide Ürün Adı"] ?? r["Depo Ürün Adı"] ?? '', aPulse = !!r._pulseD;
 
           const cNum = stockToNumber(r._cstokraw ?? '', { source: 'compel' });
-          const cTag = (!cHide && cNm) ? (cNum <= 0 ? '(Stok Yok)' : '(Stok Var)') : '';
+          const cTag = cNm ? (cNum <= 0 ? '(Stok Yok)' : '(Stok Var)') : '';
 
           const tAct = r._taktif, tStock = Number(r._tstok ?? 0);
           const tTag = tNm ? (tAct === true ? `(Aktif: ${fmtNum(tStock)} Stok)` : (tAct === false ? '(Pasif)' : '')) : '';
@@ -349,13 +334,7 @@ export function createRenderer({ ui } = {}) {
           const tsoftCode = tCode ? `<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>` : `<span class="cellTxt">—</span>`;
           const aideCode = aCode ? `<span class="cellTxt" title="${esc(aCode)}">${esc(aCode)}</span>` : `<span class="cellTxt">—</span>`;
 
-          // ✅ "(Kutusu Hasarlı)" olan Compel Ürün Adı hücresi tamamen boş görünsün
-          const compel = cHide
-            ? `<span class="cellTxt"></span>`
-            : (cNm
-                ? `<div class="tagFlex"><span class="tagLeft">${cellName(cNm, cLn, cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>`
-                : `<span class="cellTxt">—</span>`);
-
+          const compel = cNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(cNm, cLn, cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>` : `<span class="cellTxt">—</span>`;
           const tsoft = tNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(tNm, tLn, false)}</span><span class="tagRight">${esc(tTag)}</span></div>` : `<span class="cellTxt">—</span>`;
           const aide = aNm ? `<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse ? ' namePulse' : ''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>` : `<span class="cellTxt">—</span>`;
 
