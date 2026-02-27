@@ -1,18 +1,6 @@
 // ./js/modes/compel.js
 import { TR, T, parseDelimited, pickColumn, readFileText, stockToNumber } from "../utils.js";
 
-/**
- * Compel mode:
- * - Compel ürünleri API'den stream ile tarar
- * - T-Soft CSV (dosya veya daily) okur
- * - matcher ile eşleştirir
- * - "T-Soft ve Aide Eşleşmeyenler" listesini üretir
- *
- * ✅ Ek:
- * - "(Kutusu Hasarlı)" ürünleri hiç listeye alma
- * - Unmatched list: T-Soft durumuna göre (Aktif>0) üst, (Aktif<=0) altı, (Pasif) en alt
- * - Üstte boş hücre kalmaması için Compel/Aide satırlarını önce Aktif>0 satırlarına doldurarak "pack" et
- */
 export function createCompelMode({
   $,
   TR: _TR,
@@ -29,7 +17,6 @@ export function createCompelMode({
 } = {}) {
   let abortCtrl = null;
 
-  // ✅ "(Kutusu Hasarlı)" ürünleri baştan tarama/listeden çıkar
   const HASARLI_RE = /Kutusu\s*Hasarlı/i;
 
   const setScanState = (on) => {
@@ -60,7 +47,6 @@ export function createCompelMode({
     ui?.setChip?.("sum", "✓0 • ✕0", "muted");
   };
 
-  // ---------- Unmatched list helpers ----------
   const codeNorm = (s) =>
     (s ?? "")
       .toString()
@@ -85,7 +71,7 @@ export function createCompelMode({
   }
 
   function buildTsoftSupByBrandFromResults(R) {
-    const out = new Map(); // brNorm -> Set(code)
+    const out = new Map();
     for (const row of R || []) {
       if (!row?._m) continue;
       const brNorm = normBrand(row["Marka"] || "");
@@ -102,20 +88,8 @@ export function createCompelMode({
     return out;
   }
 
-  /**
-   * ✅ Unmatched list "pack + T-Soft durum sırası"
-   * Sıra kuralı (global):
-   * 1) (Aktif: stok >= 1)
-   * 2) (Aktif: stok <= 0)
-   * 3) (T-Soft bilinmiyor / yok)  -> ortada
-   * 4) (Pasif) -> en alt
-   *
-   * Pack kuralı:
-   * - Üst gruplardaki satırlara önce Compel/Aide ekleyerek üstte boş hücre bırakmamaya çalış.
-   * - Marka satırları karışmaz (tek satır tek marka).
-   */
   function buildUnmatchedListForCompel({ R = [], U = [], UT = [] } = {}) {
-    const byBrand = new Map(); // brKey -> group
+    const byBrand = new Map();
     const brandOrder = [];
 
     const brandKeyOf = (markaRaw) => {
@@ -133,10 +107,10 @@ export function createCompelMode({
           markaDisp: T(markaRaw) || key,
           C: [],
           A: [],
-          T0: [], // aktif & stok>0
-          T1: [], // aktif & stok<=0
-          T2: [], // aktif unknown/boş
-          T3: [], // pasif
+          T0: [],
+          T1: [],
+          T2: [],
+          T3: [],
         });
         brandOrder.push(key);
       } else {
@@ -147,7 +121,7 @@ export function createCompelMode({
       return byBrand.get(key);
     };
 
-    // 1) Compel-only (matcher.U)
+    // 1) Compel-only
     for (const r of U || []) {
       const marka = r["Marka"] || "";
       const g = ensure(marka);
@@ -166,7 +140,7 @@ export function createCompelMode({
       });
     }
 
-    // 2) T-Soft-only (matcher.UT) -> bucketla
+    // 2) T-Soft-only
     for (const r of UT || []) {
       const marka = r["Marka"] || "";
       const g = ensure(marka);
@@ -188,16 +162,12 @@ export function createCompelMode({
         _tstokraw: r._stokraw || "",
       };
 
-      if (tAct === true) {
-        (Number(tStock) > 0 ? g.T0 : g.T1).push(item);
-      } else if (tAct === false) {
-        g.T3.push(item);
-      } else {
-        g.T2.push(item);
-      }
+      if (tAct === true) (Number(tStock) > 0 ? g.T0 : g.T1).push(item);
+      else if (tAct === false) g.T3.push(item);
+      else g.T2.push(item);
     }
 
-    // 3) Aide-only (depot.unmatchedRows)
+    // 3) Aide-only
     try {
       if (depot?.isReady?.()) {
         const brandsNormSet = buildSelectedBrandsNormSet();
@@ -226,10 +196,21 @@ export function createCompelMode({
       console.warn("depot unmatched build fail", e);
     }
 
+    // ✅ Compel stok sırası: Stok Var önce, Stok Yok en sona
+    for (const brKey of brandOrder) {
+      const g = byBrand.get(brKey);
+      if (!g?.C?.length) continue;
+      const cin = [], cout = [];
+      for (const it of g.C) {
+        const n = stockToNumber(it?._cstokraw ?? '', { source: 'compel' });
+        (n > 0 ? cin : cout).push(it);
+      }
+      g.C = [...cin, ...cout];
+    }
+
     const mkRow = (brandDisp, c, t, a) => {
       const row = {
         Marka: brandDisp || "",
-
         "Compel Ürün Kodu": "",
         "Compel Ürün Adı": "",
         "T-Soft Ürün Kodu": "",
@@ -243,34 +224,29 @@ export function createCompelMode({
       return row;
     };
 
-    // ✅ Global fazlar: T0 -> T1 -> T2 -> (C/A-only) -> T3
     const out = [];
 
     const emitTBucket = (bucketKey) => {
       for (const brKey of brandOrder) {
         const g = byBrand.get(brKey);
         if (!g) continue;
-
         const brandDisp = g.markaDisp || brKey;
 
         const bucket = g[bucketKey] || [];
         while (bucket.length) {
           const t = bucket.shift();
-          const c = g.C.length ? g.C.shift() : null;
+          const c = g.C.length ? g.C.shift() : null;   // ✅ Stok Yok en sona kaldığı için alta düşer
           const a = g.A.length ? g.A.shift() : null;
           out.push(mkRow(brandDisp, c, t, a));
         }
       }
     };
 
-    // 1) Aktif & stok>0
     emitTBucket("T0");
-    // 2) Aktif & stok<=0
     emitTBucket("T1");
-    // 3) Aktif bilinmiyor / T-Soft var ama tag yok
     emitTBucket("T2");
 
-    // 4) C/A-only fazı (ama pasifler için bir miktar C/A ayır -> pasif en altta dolsun)
+    // C/A-only fazı (pasif için az da olsa ayır)
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
       if (!g) continue;
@@ -287,15 +263,12 @@ export function createCompelMode({
       }
     }
 
-    // 5) Pasif en alt (kalan C/A varsa buraya takılır)
-    emitTBucket("T3");
+    emitTBucket("T3"); // pasif en alt
 
-    // Sıra no
     out.forEach((r, i) => (r["Sıra"] = String(i + 1)));
     return out;
   }
 
-  // ---------- public helpers ----------
   function refresh() {
     const { R, U, UT } = matcher.getResults();
     const Ux = buildUnmatchedListForCompel({ R, U, UT });
@@ -312,7 +285,6 @@ export function createCompelMode({
     ui?.setChip?.("sum", "✓0 • ✕0", "muted");
   }
 
-  // ---------- main generate ----------
   async function generate() {
     const sel = daily?.getSelected?.() || { tsoft: "", aide: "" };
     const needDaily = !!(sel.tsoft || sel.aide);
@@ -337,12 +309,9 @@ export function createCompelMode({
       const selectedBrands = brandUI?.getSelectedBrands?.() || [];
       const allBrands = brandUI?.getBrands?.() || [];
       if (selectedBrands.length && allBrands.length && selectedBrands.length === allBrands.length) {
-        if (!confirm("Tüm markaları taramak üzeresiniz. Emin misiniz?")) {
-          throw new Error("İptal edildi.");
-        }
+        if (!confirm("Tüm markaları taramak üzeresiniz. Emin misiniz?")) throw new Error("İptal edildi.");
       }
 
-      // 1) Daily seçildiyse: tsoftText ve/veya aide'yi daily'den al
       let t2txt = "";
       if (needDaily) {
         const ymdSel = String(sel.tsoft || sel.aide || "").trim();
@@ -371,14 +340,8 @@ export function createCompelMode({
         }
       }
 
-      // 2) Compel taraması (stream)
       let seq = 0;
-      const chosen = selectedBrands.map((b) => ({
-        id: b.id,
-        slug: b.slug,
-        name: b.name,
-        count: b.count,
-      }));
+      const chosen = selectedBrands.map((b) => ({ id: b.id, slug: b.slug, name: b.name, count: b.count }));
 
       const scanPromise = (async () => {
         const rows = [];
@@ -391,8 +354,6 @@ export function createCompelMode({
             } else if (m.type === "product") {
               const p = m.data || {};
               const title = String(p.title || "Ürün");
-
-              // ✅ "(Kutusu Hasarlı)" ürünleri tamamen SKIP
               if (HASARLI_RE.test(title)) return;
 
               seq++;
@@ -413,11 +374,9 @@ export function createCompelMode({
       })();
 
       const t2Promise = t2txt ? Promise.resolve(t2txt) : readFileText(file);
-
       const [t2txtFinal, L1] = await Promise.all([t2Promise, scanPromise]);
       ui?.setChip?.("l1Chip", `Compel:${L1.length}`);
 
-      // 3) T-Soft parse + matcher load
       const p2 = parseDelimited(t2txtFinal);
       if (!p2.rows.length) {
         alert("T-Soft CSV boş görünüyor.");
@@ -425,15 +384,7 @@ export function createCompelMode({
       }
 
       const s2 = p2.rows[0];
-      const C1 = {
-        siraNo: "Sıra No",
-        marka: "Marka",
-        urunAdi: "Ürün Adı",
-        urunKodu: "Ürün Kodu",
-        stok: "Stok",
-        ean: "EAN",
-        link: "Link",
-      };
+      const C1 = { siraNo: "Sıra No", marka: "Marka", urunAdi: "Ürün Adı", urunKodu: "Ürün Kodu", stok: "Stok", ean: "EAN", link: "Link" };
 
       const C2 = {
         ws: pickColumn(s2, ["Web Servis Kodu", "WebServis Kodu", "WebServisKodu"]),
@@ -456,15 +407,9 @@ export function createCompelMode({
 
       const L2all = p2.rows;
 
-      await daily.trySaveIfChecked({
-        kind: "tsoft",
-        getRaw: () => t2txtFinal,
-      });
+      await daily.trySaveIfChecked({ kind: "tsoft", getRaw: () => t2txtFinal });
 
-      // Compel markaları ile filtrelenmiş L2
-      const compelBrandsNorm = new Set(
-        L1.map((r) => normBrand(r[C1.marka] || "")).filter(Boolean)
-      );
+      const compelBrandsNorm = new Set(L1.map((r) => normBrand(r[C1.marka] || "")).filter(Boolean));
       const L2 = L2all.filter((r) => compelBrandsNorm.has(normBrand(r[C2.marka] || "")));
 
       matcher.loadData({ l1: L1, c1: C1, l2: L2, c2: C2, l2All: L2all });
@@ -481,9 +426,7 @@ export function createCompelMode({
       return true;
     } catch (e) {
       const msg = String(e?.message || e || "");
-      if (msg.toLowerCase().includes("unauthorized")) {
-        daily?.resetReadCache?.();
-      }
+      if (msg.toLowerCase().includes("unauthorized")) daily?.resetReadCache?.();
       console.error(e);
       ui?.setStatus?.(msg || "Hata (konsol)", "bad");
       alert(msg || String(e));
