@@ -95,19 +95,56 @@ export function createCompelMode({
     return out;
   }
 
+  /**
+   * ✅ İstenen düzeltme:
+   * Görünüm (render) değişmesin, ama "—" ile boş kalan satır/bloklar
+   * aynı marka içinde yukarıdaki boşluklara doldurulsun (pack).
+   *
+   * Mantık:
+   * - Compel-only, Tsoft-only, Aide-only unmatched kayıtlarını marka bazında ayrı listelere ayır
+   * - Aynı markada: i'nci Compel + i'nci Tsoft + i'nci Aide kayıtlarını tek satırda birleştir
+   * - Böylece gereksiz "— dolu satır" hissi azalır (boşluklar yukarı taşınmış olur)
+   */
   function buildUnmatchedListForCompel({ R = [], U = [], UT = [] } = {}) {
-    const out = [];
+    const byBrand = new Map(); // brKey -> { markaDisp, C:[], T:[], A:[] }
+    const brandOrder = []; // ilk görülen sıraya göre (eski akışa en yakın)
+
+    const brandKeyOf = (markaRaw) => {
+      const m = T(markaRaw || "");
+      const bn = typeof normBrand === "function" ? normBrand(m) : "";
+      // normBrand boş dönerse, en azından bir anahtar üretelim
+      return bn || (m ? m.toLocaleUpperCase(TR).trim() : "");
+    };
+
+    const ensure = (markaRaw) => {
+      const key = brandKeyOf(markaRaw);
+      if (!key) return null;
+
+      if (!byBrand.has(key)) {
+        byBrand.set(key, { markaDisp: T(markaRaw) || key, C: [], T: [], A: [] });
+        brandOrder.push(key);
+      } else {
+        const g = byBrand.get(key);
+        // daha iyi bir display adı gelirse (boş/anahtar ise) güncelle
+        const disp = T(markaRaw);
+        if (disp && (!g.markaDisp || g.markaDisp === key)) g.markaDisp = disp;
+      }
+      return byBrand.get(key);
+    };
 
     // 1) Compel'de var ama T-Soft eşleşmedi (matcher.U)
     for (const r of U || []) {
-      out.push({
-        Marka: r["Marka"] || "",
-        "Compel Ürün Kodu": r["Ürün Kodu (Compel)"] || "",
-        "Compel Ürün Adı": r["Ürün Adı (Compel)"] || "",
-        "T-Soft Ürün Kodu": "",
-        "T-Soft Ürün Adı": "",
-        "Aide Ürün Kodu": "",
-        "Aide Ürün Adı": "",
+      const marka = r["Marka"] || "";
+      const g = ensure(marka);
+      if (!g) continue;
+
+      const cCode = T(r["Ürün Kodu (Compel)"] || "");
+      const cNm = T(r["Ürün Adı (Compel)"] || "");
+      if (!cCode && !cNm) continue;
+
+      g.C.push({
+        "Compel Ürün Kodu": cCode,
+        "Compel Ürün Adı": cNm,
         _clink: r._clink || "",
         _pulseC: true,
         _cstokraw: r._s1raw || "",
@@ -116,20 +153,20 @@ export function createCompelMode({
 
     // 2) T-Soft'ta var ama Compel'de eşleşmedi (matcher.UT)
     for (const r of UT || []) {
+      const marka = r["Marka"] || "";
+      const g = ensure(marka);
+      if (!g) continue;
+
       const tCode = T(r._sup || "") || T(r._ws || "");
-      out.push({
-        Marka: r["Marka"] || "",
-        "Compel Ürün Kodu": "",
-        "Compel Ürün Adı": "",
+      const tNm = T(r["T-Soft Ürün Adı"] || "");
+      if (!tCode && !tNm) continue;
+
+      g.T.push({
         "T-Soft Ürün Kodu": tCode,
-        "T-Soft Ürün Adı": r["T-Soft Ürün Adı"] || "",
-        "Aide Ürün Kodu": "",
-        "Aide Ürün Adı": "",
+        "T-Soft Ürün Adı": tNm,
         _seo: r._seo || "",
         _taktif: r._aktif,
-        _tstok: r._stokraw
-          ? stockToNumber(r._stokraw, { source: "products" })
-          : 0,
+        _tstok: r._stokraw ? stockToNumber(r._stokraw, { source: "products" }) : 0,
         _tstokraw: r._stokraw || "",
       });
     }
@@ -139,24 +176,59 @@ export function createCompelMode({
       if (depot?.isReady?.()) {
         const brandsNormSet = buildSelectedBrandsNormSet();
         const tsoftSupByBrand = buildTsoftSupByBrandFromResults(R);
-        const depUnm =
-          depot.unmatchedRows({ brandsNormSet, tsoftSupByBrand }) || [];
+        const depUnm = depot.unmatchedRows({ brandsNormSet, tsoftSupByBrand }) || [];
+
         for (const r of depUnm) {
-          out.push({
-            Marka: r["Marka"] || "",
-            "Compel Ürün Kodu": "",
-            "Compel Ürün Adı": "",
-            "T-Soft Ürün Kodu": "",
-            "T-Soft Ürün Adı": "",
-            "Aide Ürün Kodu": r["Aide Ürün Kodu"] || "",
-            "Aide Ürün Adı": r["Aide Ürün Adı"] || r["Depo Ürün Adı"] || "",
-            _dstok: Number(r._dnum || 0),
-            _pulseD: Number(r._dnum || 0) > 0,
+          const marka = r["Marka"] || "";
+          const g = ensure(marka);
+          if (!g) continue;
+
+          const aCode = T(r["Aide Ürün Kodu"] || "");
+          const aNm = T(r["Aide Ürün Adı"] || r["Depo Ürün Adı"] || "");
+          if (!aCode && !aNm) continue;
+
+          const dnum = Number(r._dnum || 0);
+          g.A.push({
+            "Aide Ürün Kodu": aCode,
+            "Aide Ürün Adı": aNm,
+            _dstok: dnum,
+            _pulseD: dnum > 0,
           });
         }
       }
     } catch (e) {
       console.warn("depot unmatched build fail", e);
+    }
+
+    // ✅ Marka içi pack: i'nci Compel + i'nci Tsoft + i'nci Aide aynı satıra
+    const out = [];
+    for (const brKey of brandOrder) {
+      const g = byBrand.get(brKey);
+      if (!g) continue;
+
+      const maxLen = Math.max(g.C.length, g.T.length, g.A.length);
+      for (let i = 0; i < maxLen; i++) {
+        const row = {
+          Marka: g.markaDisp || brKey,
+
+          "Compel Ürün Kodu": "",
+          "Compel Ürün Adı": "",
+          "T-Soft Ürün Kodu": "",
+          "T-Soft Ürün Adı": "",
+          "Aide Ürün Kodu": "",
+          "Aide Ürün Adı": "",
+        };
+
+        const c = g.C[i];
+        const t = g.T[i];
+        const a = g.A[i];
+
+        c && Object.assign(row, c);
+        t && Object.assign(row, t);
+        a && Object.assign(row, a);
+
+        out.push(row);
+      }
     }
 
     out.forEach((r, i) => (r["Sıra"] = String(i + 1)));
