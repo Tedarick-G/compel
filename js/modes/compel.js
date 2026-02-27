@@ -99,7 +99,7 @@ export function createCompelMode({
   }
 
   /**
-   * ✅ Pack (boşlukları yukarı taşıma) + ✅ Pasif/Aktif sıralama
+   * ✅ Pack (boşlukları yukarı taşıma) — önceki isteğin korunuyor
    */
   function buildUnmatchedListForCompel({ R = [], U = [], UT = [] } = {}) {
     const byBrand = new Map(); // brKey -> { markaDisp, C:[], T:[], A:[] }
@@ -137,13 +137,8 @@ export function createCompelMode({
       if (!cCode && !cNm) continue;
 
       g.C.push({
-        Marka: marka,
         "Compel Ürün Kodu": cCode,
         "Compel Ürün Adı": cNm,
-        "T-Soft Ürün Kodu": "",
-        "T-Soft Ürün Adı": "",
-        "Aide Ürün Kodu": "",
-        "Aide Ürün Adı": "",
         _clink: r._clink || "",
         _pulseC: true,
         _cstokraw: r._s1raw || "",
@@ -161,13 +156,8 @@ export function createCompelMode({
       if (!tCode && !tNm) continue;
 
       g.T.push({
-        Marka: marka,
-        "Compel Ürün Kodu": "",
-        "Compel Ürün Adı": "",
         "T-Soft Ürün Kodu": tCode,
         "T-Soft Ürün Adı": tNm,
-        "Aide Ürün Kodu": "",
-        "Aide Ürün Adı": "",
         _seo: r._seo || "",
         _taktif: r._aktif,
         _tstok: r._stokraw ? stockToNumber(r._stokraw, { source: "products" }) : 0,
@@ -193,11 +183,6 @@ export function createCompelMode({
 
           const dnum = Number(r._dnum || 0);
           g.A.push({
-            Marka: marka,
-            "Compel Ürün Kodu": "",
-            "Compel Ürün Adı": "",
-            "T-Soft Ürün Kodu": "",
-            "T-Soft Ürün Adı": "",
             "Aide Ürün Kodu": aCode,
             "Aide Ürün Adı": aNm,
             _dstok: dnum,
@@ -209,7 +194,7 @@ export function createCompelMode({
       console.warn("depot unmatched build fail", e);
     }
 
-    // ✅ marka içi pack
+    // marka içi pack
     const out = [];
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
@@ -217,8 +202,9 @@ export function createCompelMode({
 
       const maxLen = Math.max(g.C.length, g.T.length, g.A.length);
       for (let i = 0; i < maxLen; i++) {
-        const base = {
+        const row = {
           Marka: g.markaDisp || brKey,
+
           "Compel Ürün Kodu": "",
           "Compel Ürün Adı": "",
           "T-Soft Ürün Kodu": "",
@@ -231,38 +217,16 @@ export function createCompelMode({
         const t = g.T[i];
         const a = g.A[i];
 
-        c && Object.assign(base, c);
-        t && Object.assign(base, t);
-        a && Object.assign(base, a);
+        c && Object.assign(row, c);
+        t && Object.assign(row, t);
+        a && Object.assign(row, a);
 
-        out.push(base);
+        out.push(row);
       }
     }
 
-    // ✅ İstenen sıralama:
-    // 1) (Aktif: stok >= 1) en üst
-    // 2) (Aktif: stok <= 0) onun altı
-    // 3) diğerleri / T-Soft yok / bilinmiyor
-    // 4) (Pasif) en alt
-    const withIdx = out.map((r, i) => ({ r, i }));
-    const grpOf = (r) => {
-      const act = r?._taktif;
-      if (act === false) return 3; // pasif en alt
-      if (act === true) {
-        const n = Number(r?._tstok ?? 0);
-        return n > 0 ? 0 : 1; // stok>0 en üst, stok<=0 altı
-      }
-      return 2; // diğerleri
-    };
-    withIdx.sort((A, B) => {
-      const ga = grpOf(A.r), gb = grpOf(B.r);
-      if (ga !== gb) return ga - gb;
-      return A.i - B.i; // stabil
-    });
-
-    const sorted = withIdx.map((x) => x.r);
-    sorted.forEach((r, i) => (r["Sıra"] = String(i + 1)));
-    return sorted;
+    out.forEach((r, i) => (r["Sıra"] = String(i + 1)));
+    return out;
   }
 
   // ---------- public helpers ----------
@@ -363,10 +327,7 @@ export function createCompelMode({
           onMessage: (m) => {
             if (!m) return;
             if (m.type === "brandStart" || m.type === "page") {
-              ui?.setStatus?.(
-                `Taranıyor: ${m.brand || ""} (${m.page || 0}/${m.pages || 0})`,
-                "unk"
-              );
+              ui?.setStatus?.(`Taranıyor: ${m.brand || ""} (${m.page || 0}/${m.pages || 0})`, "unk");
             } else if (m.type === "product") {
               const p = m.data || {};
               const title = String(p.title || "Ürün");
