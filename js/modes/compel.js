@@ -24,6 +24,9 @@ export function createCompelMode({
 } = {}) {
   let abortCtrl = null;
 
+  // ✅ "(Kutusu Hasarlı)" ürünleri baştan tarama/listeden çıkar
+  const HASARLI_RE = /Kutusu\s*Hasarlı/i;
+
   const setScanState = (on) => {
     const goBtn = $("go");
     goBtn && (goBtn.disabled = on);
@@ -96,23 +99,15 @@ export function createCompelMode({
   }
 
   /**
-   * ✅ İstenen düzeltme:
-   * Görünüm (render) değişmesin, ama "—" ile boş kalan satır/bloklar
-   * aynı marka içinde yukarıdaki boşluklara doldurulsun (pack).
-   *
-   * Mantık:
-   * - Compel-only, Tsoft-only, Aide-only unmatched kayıtlarını marka bazında ayrı listelere ayır
-   * - Aynı markada: i'nci Compel + i'nci Tsoft + i'nci Aide kayıtlarını tek satırda birleştir
-   * - Böylece gereksiz "— dolu satır" hissi azalır (boşluklar yukarı taşınmış olur)
+   * ✅ Pack (boşlukları yukarı taşıma) — önceki isteğin korunuyor
    */
   function buildUnmatchedListForCompel({ R = [], U = [], UT = [] } = {}) {
     const byBrand = new Map(); // brKey -> { markaDisp, C:[], T:[], A:[] }
-    const brandOrder = []; // ilk görülen sıraya göre (eski akışa en yakın)
+    const brandOrder = []; // ilk görülen sıraya göre
 
     const brandKeyOf = (markaRaw) => {
       const m = T(markaRaw || "");
       const bn = typeof normBrand === "function" ? normBrand(m) : "";
-      // normBrand boş dönerse, en azından bir anahtar üretelim
       return bn || (m ? m.toLocaleUpperCase(TR).trim() : "");
     };
 
@@ -125,7 +120,6 @@ export function createCompelMode({
         brandOrder.push(key);
       } else {
         const g = byBrand.get(key);
-        // daha iyi bir display adı gelirse (boş/anahtar ise) güncelle
         const disp = T(markaRaw);
         if (disp && (!g.markaDisp || g.markaDisp === key)) g.markaDisp = disp;
       }
@@ -200,7 +194,7 @@ export function createCompelMode({
       console.warn("depot unmatched build fail", e);
     }
 
-    // ✅ Marka içi pack: i'nci Compel + i'nci Tsoft + i'nci Aide aynı satıra
+    // marka içi pack
     const out = [];
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
@@ -336,11 +330,16 @@ export function createCompelMode({
               ui?.setStatus?.(`Taranıyor: ${m.brand || ""} (${m.page || 0}/${m.pages || 0})`, "unk");
             } else if (m.type === "product") {
               const p = m.data || {};
+              const title = String(p.title || "Ürün");
+
+              // ✅ "(Kutusu Hasarlı)" ürünleri tamamen SKIP
+              if (HASARLI_RE.test(title)) return;
+
               seq++;
               rows.push({
                 "Sıra No": String(seq),
                 Marka: String(p.brand || ""),
-                "Ürün Adı": String(p.title || "Ürün"),
+                "Ürün Adı": title,
                 "Ürün Kodu": String(p.productCode || ""),
                 Stok: String(p.stock || ""),
                 EAN: String(p.ean || ""),
@@ -397,7 +396,7 @@ export function createCompelMode({
 
       const L2all = p2.rows;
 
-      // daily save (T-Soft) checkbox'ı daily modülü yönetiyor
+      // daily save (T-Soft)
       await daily.trySaveIfChecked({
         kind: "tsoft",
         getRaw: () => t2txtFinal,
@@ -422,7 +421,6 @@ export function createCompelMode({
       guide?.updateFromState?.();
       return true;
     } catch (e) {
-      // unauthorized ise daily cache sıfırlama (daily modülü içinde)
       const msg = String(e?.message || e || "");
       if (msg.toLowerCase().includes("unauthorized")) {
         daily?.resetReadCache?.();
