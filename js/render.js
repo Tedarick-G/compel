@@ -317,7 +317,10 @@ export function createRenderer({ ui } = {}) {
           const cTag = cNm ? (cNum <= 0 ? '(Stok Yok)' : '(Stok Var)') : '';
 
           const tAct = r._taktif, tStock = Number(r._tstok ?? 0);
-          const tTag = tNm ? (tAct === true ? `(Aktif: ${fmtNum(tStock)} Stok)` : (tAct === false ? '(Pasif)' : '')) : '';
+          // ✅ İstenen değişiklik: (Aktif: X Stok) yerine (Stok: X)
+          const tTag = tNm
+            ? (tAct === true ? `(Stok: ${fmtNum(tStock)})` : (tAct === false ? '(Pasif)' : ''))
+            : '';
 
           const aNum = Number(r._dstok ?? 0);
           const aTag = aNm ? (aNum <= 0 ? '(Stok Yok)' : `(Stok: ${fmtNum(aNum)})`) : '';
