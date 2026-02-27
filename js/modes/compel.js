@@ -196,6 +196,27 @@ export function createCompelMode({
       console.warn("depot unmatched build fail", e);
     }
 
+    // ✅ Aide sıralaması: stok çok -> az; en sonda Stok Yok (0 ve altı)
+    for (const brKey of brandOrder) {
+      const g = byBrand.get(brKey);
+      if (!g?.A?.length) continue;
+
+      const pos = [];
+      const zero = [];
+      for (const it of g.A) {
+        const n = Number(it?._dstok ?? 0);
+        (n > 0 ? pos : zero).push(it);
+      }
+
+      const cmpName = (x, y) =>
+        String(x?.["Aide Ürün Adı"] || "").localeCompare(String(y?.["Aide Ürün Adı"] || ""), "tr", { sensitivity: "base" });
+
+      pos.sort((a, b) => (Number(b?._dstok ?? 0) - Number(a?._dstok ?? 0)) || cmpName(a, b));
+      zero.sort(cmpName);
+
+      g.A = [...pos, ...zero];
+    }
+
     // ✅ Compel stok sırası: Stok Var önce, Stok Yok en sona
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
@@ -235,13 +256,14 @@ export function createCompelMode({
         const bucket = g[bucketKey] || [];
         while (bucket.length) {
           const t = bucket.shift();
-          const c = g.C.length ? g.C.shift() : null;   // ✅ Stok Yok en sona kaldığı için alta düşer
-          const a = g.A.length ? g.A.shift() : null;
+          const c = g.C.length ? g.C.shift() : null;
+          const a = g.A.length ? g.A.shift() : null; // ✅ Aide yüksek stoklar yukarı taşınır
           out.push(mkRow(brandDisp, c, t, a));
         }
       }
     };
 
+    // T-Soft durum fazları
     emitTBucket("T0");
     emitTBucket("T1");
     emitTBucket("T2");
@@ -258,12 +280,13 @@ export function createCompelMode({
 
       while (g.C.length > reserveC || g.A.length > reserveA) {
         const c = (g.C.length > reserveC) ? g.C.shift() : null;
-        const a = (g.A.length > reserveA) ? g.A.shift() : null;
+        const a = (g.A.length > reserveA) ? g.A.shift() : null; // ✅ Aide-only satırlarda da yüksek stoklar önce gelir
         out.push(mkRow(brandDisp, c, null, a));
       }
     }
 
-    emitTBucket("T3"); // pasif en alt
+    // Pasif en alt
+    emitTBucket("T3");
 
     out.forEach((r, i) => (r["Sıra"] = String(i + 1)));
     return out;
