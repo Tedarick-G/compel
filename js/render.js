@@ -85,10 +85,9 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
    ========================================================= */
 #t1.allAuto, #t2L.allAuto, #t2R.allAuto{
   table-layout:auto!important;
-  width:100%!important; /* ✅ boş alan varsa tablo %100'e yayılır */
+  width:100%!important;
 }
 
-/* Dar kolonlar: shrink-to-content */
 #t1.allAuto .allNarrowCol, #t2L.allAuto .allNarrowCol, #t2R.allAuto .allNarrowCol{
   width:1%!important;
   overflow:visible!important;
@@ -96,13 +95,11 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
   white-space:nowrap!important;
 }
 
-/* Ürün Adı kolonları: boş alanı onlar alsın */
 #t1.allAuto .allNameCol, #t2L.allAuto .allNameCol, #t2R.allAuto .allNameCol{
   width:49%!important;
-  min-width:240px; /* çok dar ekranda bile bir miktar geniş kalsın */
+  min-width:240px;
 }
 
-/* ALL modunda genel hücre overflow’u kırpmasın (kodlar tam görünsün) */
 #t1.allAuto td, #t1.allAuto th,
 #t2L.allAuto td, #t2L.allAuto th,
 #t2R.allAuto td, #t2R.allAuto th{
@@ -144,9 +141,6 @@ function fitHeader(tableId) {
   });
 }
 
-/**
- * ✅ Tablonun gerçek genişliğini ölçüp wrap'e sığdır (scaleX).
- */
 function fitTableToWrap(tableId) {
   const t = $(tableId);
   if (!t) return;
@@ -203,40 +197,15 @@ function adjust() {
 
 const fmtNum = n => { const x = Number(n); return Number.isFinite(x) ? (Math.round(x) === x ? String(x) : String(x)) : '0'; };
 
-// ✅ Tüm Markalar stok label
 const fmtStockLabel = n => {
   const x = Number(n);
   const v = Number.isFinite(x) ? x : 0;
   return (v > 0) ? `Stok Var (${fmtNum(v)})` : `Stok Yok (${fmtNum(v)})`;
 };
 
-// ✅ Compel mode unmatched: T-Soft Ürün Adı altındaki tag'e göre sıralama
-function sortUnmatchedByTsoftStatusStable(arr) {
-  const b0 = [], b1 = [], b2 = [], b3 = [];
-  for (const r of arr || []) {
-    const tNm = String(r?.["T-Soft Ürün Adı"] ?? '').trim();
-    const tAct = r?._taktif; // true/false/null/undefined
-    const tStock = Number(r?._tstok ?? 0);
-
-    const hasT = !!tNm;
-    if (hasT && tAct === true) {
-      (tStock > 0 ? b0 : b1).push(r);
-    } else if (hasT && tAct === false) {
-      b3.push(r); // pasif en alt
-    } else {
-      b2.push(r); // diğerleri ortada kalsın
-    }
-  }
-
-  const out = [...b0, ...b1, ...b2, ...b3];
-  // yeni sıraya göre Sıra yeniden yazılsın
-  return out.map((r, i) => ({ ...r, "Sıra": String(i + 1) }));
-}
-
 export function createRenderer({ ui } = {}) {
   return {
     render(R, Ux, depotReady) {
-      // Compel modu -> ALL auto class'larını temizle
       const t1 = $('t1'); t1 && t1.classList.remove('allAuto');
       const t2L = $('t2L'); t2L && t2L.classList.remove('allAuto');
       const t2R = $('t2R'); t2R && t2R.classList.remove('allAuto');
@@ -309,9 +278,7 @@ export function createRenderer({ ui } = {}) {
       const sec = $('unmatchedSection'), ut = $('unmatchedTitle');
       ut && (ut.textContent = 'T-Soft ve Aide Eşleşmeyenler');
 
-      const Uraw = Array.isArray(Ux) ? Ux : [];
-      const U = sortUnmatchedByTsoftStatusStable(Uraw);
-
+      const U = Array.isArray(Ux) ? Ux : [];
       if (!U.length) { sec && (sec.style.display = 'none'); }
       else {
         sec && (sec.style.display = '');
@@ -388,7 +355,6 @@ export function createRenderer({ ui } = {}) {
     },
 
     renderAll({ rows = [], unmatchedTsoft = [], unmatchedAide = [] } = {}, opts = {}) {
-      // ✅ ALL modunda: auto layout class’larını aktif et
       const t1 = $('t1'); t1 && t1.classList.add('allAuto');
       const t2L = $('t2L'); t2L && t2L.classList.add('allAuto');
       const t2R = $('t2R'); t2R && t2R.classList.add('allAuto');
