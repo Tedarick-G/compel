@@ -80,26 +80,21 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
 
 /* =========================================================
    ✅ ALL modunda:
-   - Dar kolonlar içerik kadar dar kalsın (kırpma yok, alt satır yok)
-   - Ürün Adı (T-Soft/Aide) kolonları sayfaya sığana kadar genişlesin
    ========================================================= */
 #t1.allAuto, #t2L.allAuto, #t2R.allAuto{
   table-layout:auto!important;
   width:100%!important;
 }
-
 #t1.allAuto .allNarrowCol, #t2L.allAuto .allNarrowCol, #t2R.allAuto .allNarrowCol{
   width:1%!important;
   overflow:visible!important;
   text-overflow:clip!important;
   white-space:nowrap!important;
 }
-
 #t1.allAuto .allNameCol, #t2L.allAuto .allNameCol, #t2R.allAuto .allNameCol{
   width:49%!important;
   min-width:240px;
 }
-
 #t1.allAuto td, #t1.allAuto th,
 #t2L.allAuto td, #t2L.allAuto th,
 #t2R.allAuto td, #t2R.allAuto th{
@@ -203,6 +198,9 @@ const fmtStockLabel = n => {
   return (v > 0) ? `Stok Var (${fmtNum(v)})` : `Stok Yok (${fmtNum(v)})`;
 };
 
+// ✅ Compel "Stok Yok" (ana listede "Stokta Yok" da dahil)
+const isCompelOut = (row) => /YOK/i.test(String(row?.["Stok (Compel)"] ?? ''));
+
 export function createRenderer({ ui } = {}) {
   return {
     render(R, Ux, depotReady) {
@@ -232,11 +230,18 @@ export function createRenderer({ ui } = {}) {
 
       const normS = s => String(s ?? '').trim();
       const cmpTR = (a, b) => normS(a).localeCompare(normS(b), 'tr', { sensitivity: 'base' });
+
       const Rview = (R || [])
         .filter(r => !!r?._m)
         .map((row, idx) => ({ row, idx }))
         .sort((A, B) => {
           const a = A.row, b = B.row;
+
+          // ✅ Compel Stok Yok olanlar en alta
+          const ao = isCompelOut(a) ? 1 : 0;
+          const bo = isCompelOut(b) ? 1 : 0;
+          if (ao !== bo) return ao - bo;
+
           const ab = cmpTR(a?.["Marka"], b?.["Marka"]); if (ab) return ab;
           const an = cmpTR(a?.["Ürün Adı (Compel)"], b?.["Ürün Adı (Compel)"]); if (an) return an;
           const ac = cmpTR(a?.["Ürün Kodu (Compel)"], b?.["Ürün Kodu (Compel)"]); if (ac) return ac;
@@ -317,10 +322,7 @@ export function createRenderer({ ui } = {}) {
           const cTag = cNm ? (cNum <= 0 ? '(Stok Yok)' : '(Stok Var)') : '';
 
           const tAct = r._taktif, tStock = Number(r._tstok ?? 0);
-          // ✅ İstenen değişiklik: (Aktif: X Stok) yerine (Stok: X)
-          const tTag = tNm
-            ? (tAct === true ? `(Stok: ${fmtNum(tStock)})` : (tAct === false ? '(Pasif)' : ''))
-            : '';
+          const tTag = tNm ? (tAct === true ? `(Stok: ${fmtNum(tStock)})` : (tAct === false ? '(Pasif)' : '')) : '';
 
           const aNum = Number(r._dstok ?? 0);
           const aTag = aNm ? (aNum <= 0 ? '(Stok Yok)' : `(Stok: ${fmtNum(aNum)})`) : '';
