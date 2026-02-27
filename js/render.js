@@ -1,7 +1,6 @@
 // ./js/render.js
 import { esc, stockToNumber } from './utils.js';
 import { COLS } from './match.js';
-
 const $ = id => document.getElementById(id);
 const colGrp = w => `<colgroup>${w.map(x => `<col style="width:${x}%">`).join('')}</colgroup>`;
 
@@ -88,84 +87,28 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
   table-layout:auto!important;
   width:100%!important; /* ✅ boş alan varsa tablo %100'e yayılır */
 }
+
+/* Dar kolonlar: shrink-to-content */
 #t1.allAuto .allNarrowCol, #t2L.allAuto .allNarrowCol, #t2R.allAuto .allNarrowCol{
   width:1%!important;
   overflow:visible!important;
   text-overflow:clip!important;
   white-space:nowrap!important;
 }
+
+/* Ürün Adı kolonları: boş alanı onlar alsın */
 #t1.allAuto .allNameCol, #t2L.allAuto .allNameCol, #t2R.allAuto .allNameCol{
   width:49%!important;
-  min-width:240px;
+  min-width:240px; /* çok dar ekranda bile bir miktar geniş kalsın */
 }
+
+/* ALL modunda genel hücre overflow’u kırpmasın (kodlar tam görünsün) */
 #t1.allAuto td, #t1.allAuto th,
 #t2L.allAuto td, #t2L.allAuto th,
 #t2R.allAuto td, #t2R.allAuto th{
   overflow:visible!important;
   text-overflow:clip!important;
 }
-
-/* =========================================================
-   ✅ COMPEL unmatched (t2): boş kolonları kaldıran 2'li kart görünümü
-   ========================================================= */
-.unmGroupCell{
-  font-weight:1300;
-  letter-spacing:.01em;
-  text-align:left!important;
-  padding:10px 10px!important;
-  background:rgba(232,60,97,.06);
-  border-bottom:1px solid var(--border)!important;
-}
-.uCard{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  padding:8px 10px;
-  border:1px solid var(--border);
-  border-radius:10px;
-  background:var(--bg-main);
-  min-height:58px;
-}
-.uTop{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.uSeq{
-  font-weight:1200;
-  opacity:.85;
-  color:var(--text-2);
-}
-.uSrc{
-  padding:2px 8px;
-  border:1px solid var(--border-2);
-  border-radius:999px;
-  font-weight:1200;
-  font-size:12px;
-  line-height:1.2;
-}
-.uSrc.compel{color:var(--ok)}
-.uSrc.tsoft{color:var(--link)}
-.uSrc.aide{color:var(--unk)}
-.uBrand{
-  font-weight:1100;
-  opacity:.95;
-}
-.uCode{
-  font-weight:1200;
-  letter-spacing:.01em;
-}
-.uTag{
-  margin-left:auto;
-  font-weight:1100;
-  font-size:12px;
-  opacity:.92;
-  color:var(--text-2);
-  white-space:nowrap;
-}
-.uNameLine{min-width:0}
-.uNameLine .nm{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 `;
   document.head.appendChild(st);
 }
@@ -348,134 +291,67 @@ export function createRenderer({ ui } = {}) {
       else {
         sec && (sec.style.display = '');
 
-        const t = s => String(s ?? '').trim();
+        const UCOLS = [
+          "Sıra",
+          "Marka",
+          "Compel Ürün Kodu",
+          "Compel Ürün Adı",
+          "T-Soft Ürün Kodu",
+          "T-Soft Ürün Adı",
+          "Aide Ürün Kodu",
+          "Aide Ürün Adı"
+        ];
 
-        // Ux içinden "kaynak" tespiti
-        const detectType = r => {
-          const cCode = t(r["Compel Ürün Kodu"] ?? r["Ürün Kodu (Compel)"] ?? '');
-          const cNm = t(r["Compel Ürün Adı"] ?? r["Ürün Adı (Compel)"] ?? '');
-          if (cCode || cNm) return 'compel';
+        const W2 = [4, 10, 10, 18, 10, 18, 10, 20];
 
-          const tCode = t(r["T-Soft Ürün Kodu"] ?? r["Ürün Kodu (T-Soft)"] ?? '');
-          const tNm = t(r["T-Soft Ürün Adı"] ?? r["Ürün Adı (T-Soft)"] ?? '');
-          if (tCode || tNm) return 'tsoft';
+        const head2 = UCOLS.map(c => {
+          const sep = (c === "Compel Ürün Kodu" || c === "T-Soft Ürün Kodu" || c === "Aide Ürün Kodu") ? ' sepL' : '';
+          const tightCol = (c === "Sıra" || c === "Marka" || c === "Compel Ürün Kodu" || c === "T-Soft Ürün Kodu" || c === "Aide Ürün Kodu") ? ' tightCol' : '';
+          return `<th class="${(sep + tightCol).trim()}" title="${esc(c)}"><span class="hTxt">${fmtHdr(c)}</span></th>`;
+        }).join('');
 
-          const aCode = t(r["Aide Ürün Kodu"] ?? r["Ürün Kodu (Aide)"] ?? '');
-          const aNm = t(r["Aide Ürün Adı"] ?? r["Depo Ürün Adı"] ?? r["Ürün Adı (Aide)"] ?? '');
-          if (aCode || aNm) return 'aide';
+        const body2 = U.map((r, i) => {
+          const seq = r["Sıra"] ?? String(i + 1), brand = r["Marka"] ?? '';
+          const cCode = (r["Compel Ürün Kodu"] ?? r["Ürün Kodu (Compel)"] ?? '').toString().trim();
+          const cNm = r["Compel Ürün Adı"] ?? '', cLn = r._clink || '', cPulse = !!r._pulseC;
 
-          return 'other';
-        };
+          const tCode = (r["T-Soft Ürün Kodu"] ?? '').toString().trim();
+          const tNm = r["T-Soft Ürün Adı"] ?? '', tLn = r._seo || '';
 
-        const mkItem = (r, i) => {
-          const type = detectType(r);
-          const seq = t(r["Sıra"] ?? '') || String(i + 1);
-          const brand = t(r["Marka"] ?? '');
+          const aCode = (r["Aide Ürün Kodu"] ?? '').toString().trim();
+          const aNm = r["Aide Ürün Adı"] ?? r["Depo Ürün Adı"] ?? '', aPulse = !!r._pulseD;
 
-          if (type === 'compel') {
-            const code = t(r["Compel Ürün Kodu"] ?? r["Ürün Kodu (Compel)"] ?? '');
-            const name = t(r["Compel Ürün Adı"] ?? r["Ürün Adı (Compel)"] ?? '');
-            const href = r._clink || '';
-            const pulse = !!r._pulseC;
-            const cNum = stockToNumber(r._cstokraw ?? '', { source: 'compel' });
-            const tag = name ? (cNum <= 0 ? 'Stok Yok' : 'Stok Var') : '';
-            return { type, seq, brand, code, name, href, pulse, tag, extraCls: '' };
-          }
+          const cNum = stockToNumber(r._cstokraw ?? '', { source: 'compel' });
+          const cTag = cNm ? (cNum <= 0 ? '(Stok Yok)' : '(Stok Var)') : '';
 
-          if (type === 'tsoft') {
-            const code = t(r["T-Soft Ürün Kodu"] ?? r["Ürün Kodu (T-Soft)"] ?? '');
-            const name = t(r["T-Soft Ürün Adı"] ?? r["Ürün Adı (T-Soft)"] ?? '');
-            const href = r._seo || '';
-            const tAct = r._taktif;
-            const tStock = Number(r._tstok ?? 0);
-            const tag = name
-              ? (tAct === true ? `Aktif • Stok: ${fmtNum(tStock)}` : (tAct === false ? 'Pasif' : ''))
-              : '';
-            const extraCls = (tAct === false) ? 'tsoftPassive' : '';
-            return { type, seq, brand, code, name, href, pulse: false, tag, extraCls };
-          }
+          const tAct = r._taktif, tStock = Number(r._tstok ?? 0);
+          const tTag = tNm ? (tAct === true ? `(Aktif: ${fmtNum(tStock)} Stok)` : (tAct === false ? '(Pasif)' : '')) : '';
 
-          if (type === 'aide') {
-            const code = t(r["Aide Ürün Kodu"] ?? r["Ürün Kodu (Aide)"] ?? '');
-            const name = t(r["Aide Ürün Adı"] ?? r["Depo Ürün Adı"] ?? r["Ürün Adı (Aide)"] ?? '');
-            const aNum = Number(r._dstok ?? 0);
-            const pulse = !!r._pulseD || aNum > 0;
-            const tag = name ? (aNum <= 0 ? 'Stok Yok' : `Stok: ${fmtNum(aNum)}`) : '';
-            return { type, seq, brand, code, name, href: '', pulse, tag, extraCls: '' };
-          }
+          const aNum = Number(r._dstok ?? 0);
+          const aTag = aNm ? (aNum <= 0 ? '(Stok Yok)' : `(Stok: ${fmtNum(aNum)})`) : '';
 
-          return {
-            type: 'other',
-            seq, brand,
-            code: t(r["Ürün Kodu"] ?? ''),
-            name: t(r["Ürün Adı"] ?? ''),
-            href: '', pulse: false, tag: '', extraCls: ''
-          };
-        };
+          const compelCode = cCode ? `<span class="cellTxt" title="${esc(cCode)}">${esc(cCode)}</span>` : `<span class="cellTxt">—</span>`;
+          const tsoftCode = tCode ? `<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>` : `<span class="cellTxt">—</span>`;
+          const aideCode = aCode ? `<span class="cellTxt" title="${esc(aCode)}">${esc(aCode)}</span>` : `<span class="cellTxt">—</span>`;
 
-        const card = (it) => {
-          const srcLbl = it.type === 'compel' ? 'Compel' : it.type === 'tsoft' ? 'T-Soft' : it.type === 'aide' ? 'Aide' : '—';
-          const srcCls = it.type === 'compel' ? 'compel' : it.type === 'tsoft' ? 'tsoft' : it.type === 'aide' ? 'aide' : '';
-          const nmHtml = it.name
-            ? cellName(it.name, it.href, it.pulse, it.extraCls)
-            : `<span class="cellTxt">—</span>`;
+          const compel = cNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(cNm, cLn, cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>` : `<span class="cellTxt">—</span>`;
+          const tsoft = tNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(tNm, tLn, false)}</span><span class="tagRight">${esc(tTag)}</span></div>` : `<span class="cellTxt">—</span>`;
+          const aide = aNm ? `<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse ? ' namePulse' : ''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>` : `<span class="cellTxt">—</span>`;
 
-          const br = it.brand ? `<span class="uBrand" title="${esc(it.brand)}">${esc(it.brand)}</span>` : '';
-          const code = it.code ? `<span class="uCode" title="${esc(it.code)}">${esc(it.code)}</span>` : `<span class="uCode">—</span>`;
-          const tag = it.tag ? `<span class="uTag" title="${esc(it.tag)}">${esc(it.tag)}</span>` : `<span class="uTag"></span>`;
+          return `<tr id="u_${i}">
+            <td class="seqCell tightCol" title="${esc(seq)}"><span class="cellTxt">${esc(seq)}</span></td>
+            <td class="tightCol" title="${esc(brand)}"><span class="cellTxt">${esc(brand)}</span></td>
 
-          return `<div class="uCard uCard--${esc(it.type)}" title="${esc(srcLbl)}">
-            <div class="uTop">
-              <span class="uSeq">#${esc(it.seq)}</span>
-              <span class="uSrc ${esc(srcCls)}">${esc(srcLbl)}</span>
-              ${br}
-              ${code}
-              ${tag}
-            </div>
-            <div class="uNameLine">${nmHtml}</div>
-          </div>`;
-        };
+            <td class="tightCol sepL" title="${esc(cCode)}">${compelCode}</td>
+            <td class="left nameCell">${compel}</td>
 
-        // ✅ grupları sırayla yaz (Compel -> T-Soft -> Aide)
-        const items = U.map(mkItem);
-        const groups = {
-          compel: items.filter(x => x.type === 'compel'),
-          tsoft: items.filter(x => x.type === 'tsoft'),
-          aide: items.filter(x => x.type === 'aide'),
-          other: items.filter(x => x.type === 'other'),
-        };
+            <td class="tightCol sepL" title="${esc(tCode)}">${tsoftCode}</td>
+            <td class="left nameCell">${tsoft}</td>
 
-        const groupLabel = {
-          compel: 'Compel Ürün Kodu • Compel Ürün Adı',
-          tsoft: 'T-Soft Ürün Kodu • T-Soft Ürün Adı',
-          aide: 'Aide Ürün Kodu • Aide Ürün Adı',
-          other: 'Diğer',
-        };
-
-        const mkPairsRows = (arr) => {
-          let out = '';
-          for (let i = 0; i < arr.length; i += 2) {
-            const a = arr[i];
-            const b = arr[i + 1] || null;
-            out += `<tr>
-              <td class="left nameCell">${a ? card(a) : ''}</td>
-              <td class="left nameCell sepL">${b ? card(b) : ''}</td>
-            </tr>`;
-          }
-          return out;
-        };
-
-        let body2 = '';
-        (['compel', 'tsoft', 'aide', 'other']).forEach(k => {
-          const arr = groups[k] || [];
-          if (!arr.length) return;
-          body2 += `<tr><td class="unmGroupCell" colspan="2" title="${esc(groupLabel[k])}">${esc(groupLabel[k])}</td></tr>`;
-          body2 += mkPairsRows(arr);
-        });
-
-        const W2 = [50, 50];
-        const head2 = `<th class="left" title="Kayıt 1"><span class="hTxt">${fmtHdr('Kayıt 1')}</span></th>` +
-                      `<th class="left sepL" title="Kayıt 2"><span class="hTxt">${fmtHdr('Kayıt 2')}</span></th>`;
+            <td class="tightCol sepL" title="${esc(aCode)}">${aideCode}</td>
+            <td class="left nameCell">${aide}</td>
+          </tr>`;
+        }).join('');
 
         $('t2').innerHTML = colGrp(W2) + `<thead><tr>${head2}</tr></thead><tbody>${body2}</tbody>`;
       }
@@ -592,3 +468,5 @@ export function createRenderer({ ui } = {}) {
     }
   };
 }
+
+
