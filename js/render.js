@@ -210,6 +210,29 @@ const fmtStockLabel = n => {
   return (v > 0) ? `Stok Var (${fmtNum(v)})` : `Stok Yok (${fmtNum(v)})`;
 };
 
+// ✅ Compel mode unmatched: T-Soft Ürün Adı altındaki tag'e göre sıralama
+function sortUnmatchedByTsoftStatusStable(arr) {
+  const b0 = [], b1 = [], b2 = [], b3 = [];
+  for (const r of arr || []) {
+    const tNm = String(r?.["T-Soft Ürün Adı"] ?? '').trim();
+    const tAct = r?._taktif; // true/false/null/undefined
+    const tStock = Number(r?._tstok ?? 0);
+
+    const hasT = !!tNm;
+    if (hasT && tAct === true) {
+      (tStock > 0 ? b0 : b1).push(r);
+    } else if (hasT && tAct === false) {
+      b3.push(r); // pasif en alt
+    } else {
+      b2.push(r); // diğerleri ortada kalsın
+    }
+  }
+
+  const out = [...b0, ...b1, ...b2, ...b3];
+  // yeni sıraya göre Sıra yeniden yazılsın
+  return out.map((r, i) => ({ ...r, "Sıra": String(i + 1) }));
+}
+
 export function createRenderer({ ui } = {}) {
   return {
     render(R, Ux, depotReady) {
@@ -286,7 +309,9 @@ export function createRenderer({ ui } = {}) {
       const sec = $('unmatchedSection'), ut = $('unmatchedTitle');
       ut && (ut.textContent = 'T-Soft ve Aide Eşleşmeyenler');
 
-      const U = Array.isArray(Ux) ? Ux : [];
+      const Uraw = Array.isArray(Ux) ? Ux : [];
+      const U = sortUnmatchedByTsoftStatusStable(Uraw);
+
       if (!U.length) { sec && (sec.style.display = 'none'); }
       else {
         sec && (sec.style.display = '');
