@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="tr">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Compel Ürün Çekici</title>
+<style>
+  body{font:14px/1.4 system-ui,Arial;margin:16px}
+  input,button{font:inherit;padding:6px}
+  #out{white-space:pre-wrap;border:1px solid #ddd;padding:10px;margin-top:10px}
+</style>
+
+<input id="u" size="90" placeholder="Compel ürün linkini yapıştırın (https://compel.com.tr/...)" />
+<button id="b">Çek</button>
+<pre id="out"></pre>
+
+<script>
+const $ = s => document.querySelector(s);
+const clean = s => (s||"").replace(/\s+/g," ").trim();
+const trTitle = s => clean(s).toLocaleLowerCase("tr-TR").split(" ")
+  .map(w=>w? w[0].toLocaleUpperCase("tr-TR")+w.slice(1):"").join(" ");
+
+const STOP = new Set(("ve ile ya da için gibi ancak fakat çünkü veya değil mi mı mu mü " +
+"bir bu şu o daha çok en hem ile ilgili hakkında ürün kdv dahil stok var yok fiyat " +
+"ana sayfa sepete ekle karşılaştır giriş üye ol değerlendirme teknik özellikler").split(" "));
+
+const proxy = url => "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+
+function pick(doc, sels){
+  for (const s of sels){
+    const el = doc.querySelector(s);
+    const t = clean(el && el.textContent);
+    if (t) return t;
+  }
+  return "";
+}
+
+function abs(url, base){
+  try { return new URL(url, base).href; } catch { return ""; }
+}
+
+function imageUrls(doc, base){
+  const bag = [];
+  doc.querySelectorAll('meta[property="og:image"],meta[property="og:image:secure_url"]').forEach(m=>{
+    const v = m.getAttribute("content"); if(v) bag.push(v);
+  });
+  doc.querySelectorAll("img").forEach(img=>{
+    ["src","data-src","data-original","data-image-large-src","data-full-size-image-url"].forEach(a=>{
+      const v = img.getAttribute(a); if(v) bag.push(v);
+    });
+  });
+
+  let urls = bag.map(v=>clean(v)).filter(Boolean).map(v=>abs(v, base)).filter(Boolean);
+
+  // Ürün görselleri genelde: /1234-home_default/xxx.jpg  -> large_default
+  urls = urls.filter(u =>
+    u.includes("compel.com.tr/") &&
+    /\/\d+-[a-z_]+_default\/.+\.(jpe?g|png|webp)(\?|$)/i.test(u)
+  ).map(u => u.replace(/(home|small|medium|cart|thickbox)_default/g, "large_default"));
+
+  // En çok tekrar eden dosya adına göre (genelde ürün slug) filtrele
+  const fname = u => u.split("?")[0].split("/").pop().toLowerCase();
+  const counts = {};
+  urls.forEach(u => counts[fname(u)] = (counts[fname(u)]||0) + 1);
+  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  if (top) urls = urls.filter(u => fname(u) === top);
+
+  return [...new Set(urls)];
+}
+
+function keywords(text, extras, n=20){
+  const out = [];
+  const add = k => { k=clean(k); if(k && !out.includes(k)) out.push(k); };
+
+  // önce "zorunlu" gibi düşün: model/marka/kısa açıklama
+  (extras||[]).forEach(add);
+
+  const words = (text||"").toLocaleLowerCase("tr-TR")
+    .match(/[a-zçğıöşü0-9\-]{3,}/gi) || [];
+  const freq = new Map();
+  for (let w of words){
+    w = w.replace(/^-+|-+$/g,"");
+    if (!w || STOP.has(w) || /^\d+$/.test(w)) continue;
+    freq.set(w, (freq.get(w)||0)+1);
+  }
+  const sorted = [...freq.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+
+  for (const w of sorted){
+    if (out.length >= n) break;
+    add(w);
+  }
+  return out.slice(0,n);
+}
+
+async function run(){
+  const url = clean($("#u").value);
+  $("#out").textContent = "Yükleniyor...";
+  try{
+    const r = await fetch(proxy(url));
+    if(!r.ok) throw new Error("Sayfa alınamadı: " + r.status);
+    const html = await r.text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    const name = pick(doc, ["h1", 'meta[property="og:title"]', "title"]) || "";
+    const short = pick(doc, [
+      ".product-description-short", "#product-description-short",
+      ".product-short-description", ".product-information .rte"
+    ]);
+
+    const fullName = short ? (clean(name) + " | " + trTitle(short)) : clean(name);
+    const imgs = imageUrls(doc, url);
+
+    const brand = pick(doc, [".product-manufacturer a", ".manufacturer a", ".brand a"]);
+    const textForKw = clean((doc.body && doc.body.textContent) || "");
+    const kw = keywords(textForKw, [brand, clean(name), trTitle(short)].filter(Boolean), 20);
+
+    $("#out").textContent =
+      "Ürün adı: " + (fullName || "-") + "\n" +
+      "Ürün Resimleri :\n" + (imgs.length ? imgs.join("\n") : "-") + "\n" +
+      "Ürün anahtar kelimeleri: " + (kw.length ? kw.join(", ") : "-");
+  }catch(e){
+    $("#out").textContent = "Hata: " + e.message;
+  }
+}
+
+$("#b").addEventListener("click", run);
+$("#u").addEventListener("keydown", e => { if(e.key==="Enter") run(); });
+</script>
+</html>
