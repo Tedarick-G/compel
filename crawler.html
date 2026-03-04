@@ -1,128 +1,550 @@
 <!doctype html>
 <html lang="tr">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Compel Ürün Çekici</title>
-<style>
-  body{font:14px/1.4 system-ui,Arial;margin:16px}
-  input,button{font:inherit;padding:6px}
-  #out{white-space:pre-wrap;border:1px solid #ddd;padding:10px;margin-top:10px}
-</style>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ürün Metninden Çıktı Üret</title>
+  <style>
+    :root { --b:#e6e6e6; --t:#111; --m:#666; --bg:#fff; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--t); margin: 18px; }
+    .wrap { max-width: 900px; }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    .hint { color: var(--m); font-size: 12px; margin: 0 0 10px; }
+    textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--b); border-radius: 10px; padding: 10px; font-size: 13px; line-height: 1.35; resize: vertical; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .pill { border: 1px solid var(--b); padding: 6px 10px; border-radius: 999px; font-size: 12px; color: var(--m); }
+    .out { margin-top: 14px; border-top: 1px solid var(--b); padding-top: 14px; }
+    .item { display: grid; grid-template-columns: 120px 1fr auto; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px dashed var(--b); }
+    .label { font-size: 12px; color: var(--m); padding-top: 7px; }
+    input.readonly, textarea.readonly {
+      width: 100%; box-sizing: border-box; border: 1px solid var(--b); border-radius: 10px;
+      padding: 8px 10px; font-size: 13px; background: #fafafa;
+    }
+    textarea.readonly { min-height: 54px; resize: vertical; }
+    button { border: 1px solid var(--b); background: #fff; border-radius: 10px; padding: 8px 10px; font-size: 12px; cursor: pointer; }
+    button:active { transform: translateY(1px); }
+    .muted { color: var(--m); font-size: 12px; margin-top: 8px; }
+    .hidden { display: none; }
+    .topbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .sitebox { display:flex; gap:8px; align-items:center; }
+    .sitebox input { width: 180px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>Ürün metnini yapıştır → otomatik çıktı</h1>
+        <p class="hint">Tedarikçi sayfasında <b>Ctrl+A</b> + <b>Ctrl+C</b> yapıp buraya yapıştır. Altta sırayla: ürün adı, kısa açıklama, SEO slug, SEO başlık, meta açıklama, 20 anahtar kelime.</p>
+      </div>
+      <div class="sitebox">
+        <span class="pill">Site adı</span>
+        <input id="siteName" class="readonly" type="text" value="Sesçi Baba" />
+      </div>
+    </div>
 
-<input id="u" size="90" placeholder="Compel ürün linkini yapıştırın (https://compel.com.tr/...)" />
-<button id="b">Çek</button>
-<pre id="out"></pre>
+    <textarea id="src" rows="6" placeholder="Buraya yapıştır..."></textarea>
 
-<script>
-const $ = s => document.querySelector(s);
-const clean = s => (s||"").replace(/\s+/g," ").trim();
-const trTitle = s => clean(s).toLocaleLowerCase("tr-TR").split(" ")
-  .map(w=>w? w[0].toLocaleUpperCase("tr-TR")+w.slice(1):"").join(" ");
+    <div class="out" id="outArea">
+      <div class="row" style="justify-content: space-between; margin-bottom: 8px;">
+        <div class="pill" id="status">Bekliyor…</div>
+        <button id="copyAll" class="hidden" type="button">Tüm çıktıyı kopyala</button>
+      </div>
 
-const STOP = new Set(("ve ile ya da için gibi ancak fakat çünkü veya değil mi mı mu mü " +
-"bir bu şu o daha çok en hem ile ilgili hakkında ürün kdv dahil stok var yok fiyat " +
-"ana sayfa sepete ekle karşılaştır giriş üye ol değerlendirme teknik özellikler").split(" "));
+      <div class="item">
+        <div class="label">1) Ürün adı</div>
+        <input id="o_name" class="readonly" type="text" readonly />
+        <button type="button" data-copy="#o_name">Kopyala</button>
+      </div>
 
-const proxy = url => "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      <div class="item">
+        <div class="label">2) Kısa açıklama</div>
+        <input id="o_desc" class="readonly" type="text" readonly />
+        <button type="button" data-copy="#o_desc">Kopyala</button>
+      </div>
 
-function pick(doc, sels){
-  for (const s of sels){
-    const el = doc.querySelector(s);
-    const t = clean(el && el.textContent);
-    if (t) return t;
-  }
-  return "";
-}
+      <div class="item">
+        <div class="label">3) SEO link (slug)</div>
+        <input id="o_slug" class="readonly" type="text" readonly />
+        <button type="button" data-copy="#o_slug">Kopyala</button>
+      </div>
 
-function abs(url, base){
-  try { return new URL(url, base).href; } catch { return ""; }
-}
+      <div class="item">
+        <div class="label">4) SEO başlık</div>
+        <input id="o_title" class="readonly" type="text" readonly />
+        <button type="button" data-copy="#o_title">Kopyala</button>
+      </div>
 
-function imageUrls(doc, base){
-  const bag = [];
-  doc.querySelectorAll('meta[property="og:image"],meta[property="og:image:secure_url"]').forEach(m=>{
-    const v = m.getAttribute("content"); if(v) bag.push(v);
-  });
-  doc.querySelectorAll("img").forEach(img=>{
-    ["src","data-src","data-original","data-image-large-src","data-full-size-image-url"].forEach(a=>{
-      const v = img.getAttribute(a); if(v) bag.push(v);
-    });
-  });
+      <div class="item">
+        <div class="label">5) Meta açıklama</div>
+        <input id="o_meta" class="readonly" type="text" readonly />
+        <button type="button" data-copy="#o_meta">Kopyala</button>
+      </div>
 
-  let urls = bag.map(v=>clean(v)).filter(Boolean).map(v=>abs(v, base)).filter(Boolean);
+      <div class="item" style="border-bottom: none;">
+        <div class="label">6) 20 anahtar kelime</div>
+        <textarea id="o_keywords" class="readonly" readonly></textarea>
+        <button type="button" data-copy="#o_keywords">Kopyala</button>
+      </div>
 
-  // Ürün görselleri genelde: /1234-home_default/xxx.jpg  -> large_default
-  urls = urls.filter(u =>
-    u.includes("compel.com.tr/") &&
-    /\/\d+-[a-z_]+_default\/.+\.(jpe?g|png|webp)(\?|$)/i.test(u)
-  ).map(u => u.replace(/(home|small|medium|cart|thickbox)_default/g, "large_default"));
+      <div class="muted">Not: Metin çok “kirli” gelirse (menüler/fiyatlar vb.), yine de başlık + ana özelliklerden iyi bir tahmin üretmeye çalışır.</div>
 
-  // En çok tekrar eden dosya adına göre (genelde ürün slug) filtrele
-  const fname = u => u.split("?")[0].split("/").pop().toLowerCase();
-  const counts = {};
-  urls.forEach(u => counts[fname(u)] = (counts[fname(u)]||0) + 1);
-  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0];
-  if (top) urls = urls.filter(u => fname(u) === top);
+      <textarea id="allText" class="readonly hidden" readonly></textarea>
+    </div>
+  </div>
 
-  return [...new Set(urls)];
-}
-
-function keywords(text, extras, n=20){
-  const out = [];
-  const add = k => { k=clean(k); if(k && !out.includes(k)) out.push(k); };
-
-  // önce "zorunlu" gibi düşün: model/marka/kısa açıklama
-  (extras||[]).forEach(add);
-
-  const words = (text||"").toLocaleLowerCase("tr-TR")
-    .match(/[a-zçğıöşü0-9\-]{3,}/gi) || [];
-  const freq = new Map();
-  for (let w of words){
-    w = w.replace(/^-+|-+$/g,"");
-    if (!w || STOP.has(w) || /^\d+$/.test(w)) continue;
-    freq.set(w, (freq.get(w)||0)+1);
-  }
-  const sorted = [...freq.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
-
-  for (const w of sorted){
-    if (out.length >= n) break;
-    add(w);
-  }
-  return out.slice(0,n);
-}
-
-async function run(){
-  const url = clean($("#u").value);
-  $("#out").textContent = "Yükleniyor...";
-  try{
-    const r = await fetch(proxy(url));
-    if(!r.ok) throw new Error("Sayfa alınamadı: " + r.status);
-    const html = await r.text();
-    const doc = new DOMParser().parseFromString(html, "text/html");
-
-    const name = pick(doc, ["h1", 'meta[property="og:title"]', "title"]) || "";
-    const short = pick(doc, [
-      ".product-description-short", "#product-description-short",
-      ".product-short-description", ".product-information .rte"
+  <script>
+    // --- Ayarlar ---
+    const STOPWORDS = new Set([
+      // TR
+      "ve","ile","için","bir","bu","şu","o","da","de","daha","çok","en","gibi","olarak","olan","olanlar",
+      "kadar","mi","mu","mü","mı","ama","fakat","ancak","hem","ya","ya da","veya","üzerine","altında",
+      "ürün","ürünü","ürünler","detay","detayları","açıklama","inceleme","değerlendirmeler","s.s.s","sss",
+      "stokta","var","yok","kargo","ücretsiz","aynı","gün","sipariş","kategoriler","ana","sayfa",
+      "hakkımızda","iletişim","markalar","fırsatlar","giriş","yap","üye","ol","paylaş","karşılaştır",
+      "kdv","dahil","hariç","vade","aylık","toplam","kartlar","ödeme",
+      // EN
+      "the","and","or","for","with","to","of","in","on","a","an","is","are","as","by"
     ]);
 
-    const fullName = short ? (clean(name) + " | " + trTitle(short)) : clean(name);
-    const imgs = imageUrls(doc, url);
+    const FEATURE_PHRASES = [
+      { re: /\bfuzz\b/i, phrase: "fuzz pedalı" },
+      { re: /\boctave\b/i, phrase: "octave fuzz pedalı" },
+      { re: /\btrue\s*by-?pass\b/i, phrase: "true bypass fuzz pedal" },
+      { re: /\bNOS\b/i, phrase: "NOS komponentli pedal" },
+      { re: /\b2N3565\b/i, phrase: "NOS 2N3565 Fairchild transistor fuzz" },
+      { re: /\bFairchild\b/i, phrase: "Fairchild transistör fuzz" },
+      { re: /\bGermanium\b/i, phrase: "germanium diyot fuzz" },
+      { re: /\b1N34A\b/i, phrase: "Germanium 1N34A diode fuzz" },
+      { re: /\bVolume\b/i, phrase: "volume sustain fuzz kontrolleri" },
+      { re: /\bSustain\b/i, phrase: "volume sustain fuzz kontrolleri" },
+      { re: /\bMellow\b/i, phrase: "mellow brite fuzz ayarı" },
+      { re: /\bBrite\b/i, phrase: "mellow brite fuzz ayarı" },
+      { re: /\bkadife\b/i, phrase: "turuncu kadife kaplı fuzz pedal" },
+      { re: /\b9\s*V\b/i, phrase: "9V pil / 9V DC adaptör fuzz pedalı" },
+      { re: /\bBilly\s+Gibbons\b/i, phrase: "blues rock fuzz tonu Billy Gibbons tarzı" },
+      { re: /\bPeter\s+Frampton\b/i, phrase: "Peter Frampton benzeri octave fuzz tonu" },
+      { re: /\bBeck\b/i, phrase: "modern alternatif fuzz tonu" },
+      { re: /\bNine\s+Inch\s+Nails\b/i, phrase: "endüstriyel fuzz tonu" },
+      { re: /\bAdrian\s+Belew\b/i, phrase: "Adrian Belew fuzz tonu" },
+      { re: /\bsynth|synthesizer|synthesizerlar\b/i, phrase: "synth için fuzz octave pedalı" },
+      { re: /\bbass\b/i, phrase: "bass için octave fuzz pedalı" },
+      { re: /\bvintage|70'?ler|yetmiş/i, phrase: "vintage 70s fuzz pedal" }
+    ];
 
-    const brand = pick(doc, [".product-manufacturer a", ".manufacturer a", ".brand a"]);
-    const textForKw = clean((doc.body && doc.body.textContent) || "");
-    const kw = keywords(textForKw, [brand, clean(name), trTitle(short)].filter(Boolean), 20);
+    // --- Yardımcılar ---
+    function looksLikeHtml(raw){
+      const s = raw.trim();
+      if (!s) return false;
+      return /<\s*(html|body|div|span|p|h1|h2|main|section|article|meta|title)\b/i.test(s) || (s.includes("<") && s.includes(">") && s.length > 200);
+    }
 
-    $("#out").textContent =
-      "Ürün adı: " + (fullName || "-") + "\n" +
-      "Ürün Resimleri :\n" + (imgs.length ? imgs.join("\n") : "-") + "\n" +
-      "Ürün anahtar kelimeleri: " + (kw.length ? kw.join(", ") : "-");
-  }catch(e){
-    $("#out").textContent = "Hata: " + e.message;
-  }
-}
+    function normalizeInput(raw){
+      let text = raw || "";
+      if (looksLikeHtml(text)) {
+        try {
+          const doc = new DOMParser().parseFromString(text, "text/html");
+          text = (doc.body && (doc.body.innerText || doc.body.textContent)) ? (doc.body.innerText || doc.body.textContent) : text;
+        } catch (_) {}
+      }
+      // Normalize spaces
+      text = text.replace(/\u00a0/g, " ");     // nbsp
+      text = text.replace(/[ \t]+\n/g, "\n");
+      text = text.replace(/\n{3,}/g, "\n\n");
+      return text.trim();
+    }
 
-$("#b").addEventListener("click", run);
-$("#u").addEventListener("keydown", e => { if(e.key==="Enter") run(); });
-</script>
+    function toSlug(s){
+      const trMap = { "ç":"c","ğ":"g","ı":"i","i":"i","ö":"o","ş":"s","ü":"u","Ç":"c","Ğ":"g","İ":"i","I":"i","Ö":"o","Ş":"s","Ü":"u" };
+      let out = (s || "").split("").map(ch => trMap[ch] ?? ch).join("");
+      out = out.toLowerCase();
+      out = out.replace(/['"]/g,"");
+      out = out.replace(/[^a-z0-9]+/g, "-");
+      out = out.replace(/-+/g, "-").replace(/^-|-$/g, "");
+      return out;
+    }
+
+    function cleanLine(line){
+      return (line || "").replace(/\s+/g, " ").trim();
+    }
+
+    function isNoiseLine(line){
+      const s = line.toLowerCase();
+      if (!s) return true;
+      if (s.length < 6) return true;
+      if (/(₺|\$|€|try|kdv|kargo|stok|sipariş|karşılaştır|paylaş|giriş yap|üye ol|müşteri hizmetleri|facebook|instagram|youtube|twitter)/i.test(line)) return true;
+      if (/^https?:\/\//i.test(line) || s.includes("@")) return true;
+      if (/^\d+([.,]\d+)?$/.test(s)) return true;
+      if (/^\d{1,2}\s*[:/]/.test(s)) return true;
+      return false;
+    }
+
+    function pickProductName(lines){
+      const candidates = [];
+      for (const ln of lines) {
+        const line = cleanLine(ln);
+        if (isNoiseLine(line)) continue;
+        if (line.length > 120) continue;
+        if (!/[A-Za-zÇĞİÖŞÜçğıöşü]/.test(line)) continue;
+        if (line.split(" ").length < 2) continue;
+        // Çok genel menü satırlarını ele
+        if (/^(ana sayfa|kategoriler|markalar|iletişim|hakkımızda)/i.test(line)) continue;
+        candidates.push(line);
+      }
+      if (!candidates.length) return "";
+
+      // Frekans bazlı seçim (aynı başlık birden çok geçer)
+      const freq = new Map();
+      const firstIndex = new Map();
+      candidates.forEach((c, idx) => {
+        freq.set(c, (freq.get(c) || 0) + 1);
+        if (!firstIndex.has(c)) firstIndex.set(c, idx);
+      });
+
+      let best = candidates[0];
+      for (const c of freq.keys()) {
+        const f = freq.get(c);
+        const b = freq.get(best);
+        if (f > b) best = c;
+        else if (f === b) {
+          // daha erken geçen tercih
+          if (firstIndex.get(c) < firstIndex.get(best)) best = c;
+        }
+      }
+
+      // Çok uzun bir satır seçildiyse (nadiren), ilk makul satıra dön
+      if (best.length > 90) {
+        const fallback = candidates.find(x => x.length >= 12 && x.length <= 90);
+        if (fallback) best = fallback;
+      }
+      return best;
+    }
+
+    function findLineIndex(lines, target){
+      if (!target) return -1;
+      const t = target.trim();
+      for (let i=0;i<lines.length;i++){
+        if (cleanLine(lines[i]) === t) return i;
+      }
+      // tam eşleşme yoksa içeriyor eşleşmesi
+      for (let i=0;i<lines.length;i++){
+        const l = cleanLine(lines[i]);
+        if (l && (l.includes(t) || t.includes(l))) return i;
+      }
+      return -1;
+    }
+
+    function pickTagline(lines, titleIdx){
+      const bad = /(kdv|stok|kargo|paylaş|karşılaştır|fiyat|vade|toplam|kredi|kart|müşteri|giriş yap|üye ol|ana sayfa)/i;
+      const start = Math.max(0, titleIdx >= 0 ? titleIdx : 0);
+      for (let i=start; i<Math.min(lines.length, start+40); i++){
+        const l = cleanLine(lines[i]);
+        if (!l) continue;
+        if (isNoiseLine(l)) continue;
+        if (bad.test(l)) continue;
+        if (l.length < 20 || l.length > 140) continue;
+        // başlığın aynısı olmasın
+        if (titleIdx >= 0 && cleanLine(lines[titleIdx]) === l) continue;
+        return l;
+      }
+      // olmadı: ilk cümle benzeri bir parçayı tüm metinden çek
+      const blob = lines.join(" ");
+      const m = blob.match(/([A-Za-zÇĞİÖŞÜçğıöşü0-9][^.!?]{20,140}[.!?])/);
+      return m ? m[1].trim().replace(/[.!?]$/,"") : "";
+    }
+
+    function pickCategory(lines){
+      // "Gitar Prosesörleri/Pedallar" gibi ilk uygun / içeren satırı bul
+      for (const ln of lines) {
+        const l = cleanLine(ln);
+        if (!l) continue;
+        if (isNoiseLine(l)) continue;
+        if (l.length > 80) continue;
+        if (l.includes("http")) continue;
+        if (/\//.test(l) && /[A-Za-zÇĞİÖŞÜçğıöşü]/.test(l)) {
+          // breadcrumb satırı çok uzun olabilir; içinden en iyi parçayı yakala
+          // "Ana Sayfa X Y Z" içinden "X" gibi
+          const m = l.match(/([A-Za-zÇĞİÖŞÜçğıöşü][A-Za-zÇĞİÖŞÜçğıöşü0-9 &-]+\/[A-Za-zÇĞİÖŞÜçğıöşü0-9 &-]+)/);
+          if (m) return cleanLine(m[1]);
+          // direkt satırı döndür
+          return l;
+        }
+      }
+      return "Ürünler";
+    }
+
+    function pickBrand(lines, titleIdx, productName){
+      const near = [];
+      const start = Math.max(0, (titleIdx >= 0 ? titleIdx : 0) - 15);
+      const end   = Math.min(lines.length, (titleIdx >= 0 ? titleIdx : 0) + 15);
+      for (let i=start; i<end; i++){
+        const l = cleanLine(lines[i]);
+        if (!l || isNoiseLine(l)) continue;
+        if (l === productName) continue;
+        // 1-3 kelimelik, büyük harfle başlayan bir "marka" satırı gibi
+        const words = l.split(" ");
+        if (words.length >= 1 && words.length <= 3 && l.length <= 30) {
+          if (/^[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü0-9]+(?:\s+[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü0-9]+){0,2}$/.test(l)) {
+            // genel kelimeleri ele
+            if (!/^(Try|Karşılaştır|Kategoriler|Ana|Sayfa)$/i.test(l)) near.push(l);
+          }
+        }
+      }
+      if (near.length) return near[0];
+
+      // ürün adının içinde marka geçiyorsa ilk iki kelimeyi marka sanma ihtimali:
+      const parts = (productName || "").split(" - ");
+      if (parts.length >= 2) {
+        // solda model kodu var, sağın ilk iki kelimesi bazen marka değil; o yüzden boş dön.
+        return "";
+      }
+      return "";
+    }
+
+    function uniqPush(arr, s){
+      const v = (s || "").trim();
+      if (!v) return;
+      const key = v.toLowerCase();
+      if (!arr._set) arr._set = new Set();
+      if (arr._set.has(key)) return;
+      arr._set.add(key);
+      arr.push(v);
+    }
+
+    function extractKeywords(text, productName, brand){
+      const out = [];
+      const site = (document.getElementById("siteName").value || "Sesçi Baba").trim();
+
+      // Temel
+      if (brand) {
+        uniqPush(out, `${brand} ${productName}`.replace(/\s+/g," ").trim());
+        // model kodu varsa (WA-FTB gibi), onu ayrıca üret
+        const model = (productName.match(/^[A-Z0-9]{2,}[-/][A-Z0-9-]{2,}/) || [])[0];
+        if (model) {
+          uniqPush(out, model);
+          uniqPush(out, model.replace(/[^A-Z0-9]/g,"")); // WAFTB
+        }
+        // marka + ürün tipi
+        const typeGuess = productName.split(" ").slice(-2).join(" ");
+        uniqPush(out, `${brand} ${typeGuess}`.trim());
+      } else {
+        // marka yoksa bile model kodu üret
+        const model = (productName.match(/^[A-Z0-9]{2,}[-/][A-Z0-9-]{2,}/) || [])[0];
+        if (model) {
+          uniqPush(out, model);
+          uniqPush(out, model.replace(/[^A-Z0-9]/g,""));
+        }
+      }
+
+      // Özellik tabanlı
+      for (const f of FEATURE_PHRASES) {
+        if (f.re.test(text)) uniqPush(out, f.phrase);
+      }
+
+      // Ürün tipini tahmin edip genel anahtarlar ekle
+      const lowerName = (productName || "").toLowerCase();
+      if (lowerName.includes("gitar") && lowerName.includes("pedal")) {
+        uniqPush(out, "gitar pedalı");
+        uniqPush(out, "gitar efekt pedalı");
+      }
+      if (/(fuzz)/i.test(text + " " + productName)) {
+        uniqPush(out, "octave-up fuzz pedal");
+        uniqPush(out, "vintage fuzz pedalı");
+      }
+
+      // Metinden kelime havuzu -> en iyi 2'li/3'lü kombinasyonlar (basit)
+      const tokens = (text || "")
+        .replace(/[(){}\[\],;:]/g," ")
+        .replace(/\s+/g," ")
+        .trim()
+        .split(" ")
+        .map(w => w.trim())
+        .filter(w => w.length >= 3 && /[A-Za-zÇĞİÖŞÜçğıöşü0-9]/.test(w));
+
+      const cleaned = tokens
+        .map(w => w.replace(/^[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+|[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+$/g,""))
+        .filter(w => w && !STOPWORDS.has(w.toLowerCase()));
+
+      // Sık geçen kelimeleri say
+      const freq = new Map();
+      for (const w of cleaned) {
+        const key = w.toLowerCase();
+        if (key.length < 3) continue;
+        freq.set(key, (freq.get(key) || 0) + 1);
+      }
+      // En sık 8 kelimeyi seç
+      const topWords = [...freq.entries()]
+        .sort((a,b) => b[1]-a[1])
+        .slice(0, 10)
+        .map(([w]) => w);
+
+      // 2'li ifadeler üret
+      for (let i=0; i<topWords.length-1; i++){
+        const a = topWords[i], b = topWords[i+1];
+        uniqPush(out, `${a} ${b}`);
+      }
+
+      // Marka varsa “inceleme fiyat” gibi arama niyeti anahtarları
+      if (brand) {
+        const short = productName.replace(/^[A-Z0-9-]+\s*-\s*/,"").trim();
+        uniqPush(out, `${brand} ${short} inceleme fiyat`.trim());
+      } else {
+        uniqPush(out, `${productName} inceleme fiyat`.trim());
+      }
+
+      // Site niyeti
+      if (site) uniqPush(out, `${productName} ${site}`.trim());
+
+      // 20'ye tamamla (gerekirse ürün adından türetilmiş parçalar)
+      const nameParts = productName.split(/[-–—|]/).map(s => s.trim()).filter(Boolean);
+      for (const p of nameParts) {
+        if (out.length >= 20) break;
+        if (p.length >= 6) uniqPush(out, p);
+      }
+
+      // Son garanti: 20'ye kadar doldur
+      const fillers = [
+        "pedalboard için fuzz",
+        "analog fuzz pedalı",
+        "octave sustain düğmeli pedal",
+        "true bypass gitar pedalı",
+        "stüdyo için fuzz tonu",
+        "sahne için fuzz pedalı",
+        "vintage tarz fuzz",
+        "octave fuzz gitar tonu"
+      ];
+      for (const f of fillers) {
+        if (out.length >= 20) break;
+        uniqPush(out, f);
+      }
+
+      // tam 20 (fazlaysa kırp)
+      return out.slice(0, 20);
+    }
+
+    function buildOutputs(raw){
+      const site = (document.getElementById("siteName").value || "Sesçi Baba").trim();
+      const normalized = normalizeInput(raw);
+      const lines = normalized.split(/\r?\n/).map(cleanLine).filter(l => l.length > 0);
+
+      const productName = pickProductName(lines);
+      const titleIdx = findLineIndex(lines, productName);
+      const tagline = productName ? pickTagline(lines, titleIdx) : "";
+
+      const slug = productName ? toSlug(productName) : "";
+      const category = productName ? pickCategory(lines) : "Ürünler";
+      const brand = productName ? pickBrand(lines, titleIdx, productName) : "";
+
+      const seoTitle = productName ? `${(brand ? brand + " " : "")}${productName} | ${site}`.replace(/\s+/g," ").trim() : "";
+      const metaDesc = productName ? `${productName} ve Diğer ${category} ${site}'da`.replace(/\s+/g," ").trim() : "";
+
+      const keywordList = productName ? extractKeywords(normalized, productName, brand) : [];
+
+      return {
+        productName,
+        tagline,
+        slug,
+        seoTitle,
+        metaDesc,
+        keywords: keywordList.join(", ")
+      };
+    }
+
+    function setValue(id, val){
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = val || "";
+    }
+
+    function updateAllText(o){
+      const all = [
+        o.productName || "",
+        o.tagline || "",
+        o.slug || "",
+        o.seoTitle || "",
+        o.metaDesc || "",
+        o.keywords || ""
+      ].join("\n");
+      const allEl = document.getElementById("allText");
+      allEl.value = all.trim();
+    }
+
+    function setStatus(msg){
+      document.getElementById("status").textContent = msg;
+    }
+
+    async function copyTextFromSelector(sel){
+      const el = document.querySelector(sel);
+      if (!el) return;
+      const val = (el.value || "").trim();
+      if (!val) return;
+      try {
+        await navigator.clipboard.writeText(val);
+      } catch (_) {
+        // fallback
+        el.focus();
+        el.select();
+        document.execCommand("copy");
+      }
+    }
+
+    // --- Etkileşim ---
+    const src = document.getElementById("src");
+    const copyAllBtn = document.getElementById("copyAll");
+    let t = null;
+
+    function recalc(){
+      const raw = src.value;
+      if (!raw.trim()){
+        setStatus("Bekliyor…");
+        setValue("o_name","");
+        setValue("o_desc","");
+        setValue("o_slug","");
+        setValue("o_title","");
+        setValue("o_meta","");
+        setValue("o_keywords","");
+        document.getElementById("allText").classList.add("hidden");
+        copyAllBtn.classList.add("hidden");
+        return;
+      }
+
+      const o = buildOutputs(raw);
+      setValue("o_name", o.productName);
+      setValue("o_desc", o.tagline);
+      setValue("o_slug", o.slug);
+      setValue("o_title", o.seoTitle);
+      setValue("o_meta", o.metaDesc);
+      setValue("o_keywords", o.keywords);
+      updateAllText(o);
+
+      const ok = !!o.productName;
+      setStatus(ok ? "Hazır ✅" : "Başlık bulunamadı (yine de denendi)");
+      copyAllBtn.classList.toggle("hidden", !ok);
+      document.getElementById("allText").classList.toggle("hidden", !ok);
+    }
+
+    function scheduleRecalc(){
+      clearTimeout(t);
+      t = setTimeout(recalc, 80);
+    }
+
+    src.addEventListener("input", scheduleRecalc);
+    src.addEventListener("paste", () => setTimeout(recalc, 0));
+    document.getElementById("siteName").addEventListener("input", scheduleRecalc);
+
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-copy]");
+      if (btn){
+        copyTextFromSelector(btn.getAttribute("data-copy"));
+      }
+    });
+
+    copyAllBtn.addEventListener("click", async () => {
+      await copyTextFromSelector("#allText");
+    });
+
+    // İlk durum
+    recalc();
+  </script>
+</body>
 </html>
