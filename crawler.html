@@ -1,284 +1,42 @@
 <!doctype html>
 <html lang="tr">
-<meta charset="utf-8">
-<title>Ürün Çıkarıcı</title>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ürün Sadeleştir</title>
+  <style>
+    body{font-family:system-ui;margin:24px;max-width:820px}
+    input,button{font:inherit}
+    input{width:100%;padding:10px}
+    button{padding:10px 14px;margin-top:10px}
+    pre{white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:8px;margin-top:12px}
+  </style>
+</head>
+<body>
+  <h1>Ürün Sadeleştir</h1>
 
-<textarea id="src" rows="6" placeholder="Tedarikçi ürün sayfası kaynağını buraya yapıştırın..."></textarea>
-<pre id="out"></pre>
+  <input id="u" value="https://compel.com.tr/mikrofonlar/1693-warm-audio-402-wa-19.html#/11-renk-siyah" />
+  <div>
+    <button id="go">Çek</button>
+    <button id="copy" disabled>Kopyala</button>
+  </div>
+  <pre id="out"></pre>
 
-<script>
-(() => {
-  const STORE_NAME = "Sesçi Baba";
+  <script>
+    const WORKER = "https://crawler.tvkapora.workers.dev"; // senin worker
+    const out = document.getElementById("out");
 
-  const trMap = (s) => (s || "")
-    .replace(/İ/g, "I").replace(/ı/g, "i")
-    .replace(/ğ/g, "g").replace(/Ğ/g, "G")
-    .replace(/ü/g, "u").replace(/Ü/g, "U")
-    .replace(/ş/g, "s").replace(/Ş/g, "S")
-    .replace(/ö/g, "o").replace(/Ö/g, "O")
-    .replace(/ç/g, "c").replace(/Ç/g, "C");
+    document.getElementById("go").onclick = async () => {
+      out.textContent = "Yükleniyor...";
+      const u = document.getElementById("u").value.trim();
+      const resp = await fetch(`${WORKER}/?u=${encodeURIComponent(u)}&site=${encodeURIComponent("Sesçi Baba")}`);
+      out.textContent = await resp.text();
+      document.getElementById("copy").disabled = !resp.ok;
+    };
 
-  const slugify = (s) => trMap(String(s || ""))
-    .toLowerCase()
-    .replace(/&/g, " ve ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-
-  const decodeEntities = (s) => {
-    if (!s) return "";
-    const ta = document.createElement("textarea");
-    ta.innerHTML = s;
-    return ta.value;
-  };
-
-  const cleanPasted = (s) => {
-    s = (s || "").trim();
-    if (!s) return "";
-    if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-      s = s.slice(1, -1);
-    }
-    return s.trim();
-  };
-
-  const getMeta = (doc, selector) => {
-    const el = doc.querySelector(selector);
-    return el ? (el.getAttribute("content") || "").trim() : "";
-  };
-
-  const uniqPush = (arr, s) => {
-    s = (s || "").trim();
-    if (!s) return;
-    const key = s.toLowerCase();
-    if (!arr._set) arr._set = new Set();
-    if (arr._set.has(key)) return;
-    arr._set.add(key);
-    arr.push(s);
-  };
-
-  const extractBrand = (raw, doc) => {
-    let b = "";
-    const manu = doc.querySelector(".manufacturer a");
-    if (manu) b = (manu.textContent || "").trim();
-    if (!b) {
-      const m = raw.match(/"item_brand"\s*:\s*"([^"]+)"/);
-      if (m) b = decodeEntities(m[1]);
-    }
-    return b.trim();
-  };
-
-  const extractCategory = (raw, doc) => {
-    // Breadcrumb: Ana Sayfa > Kategori > Ürün
-    const crumbs = Array.from(doc.querySelectorAll("nav.breadcrumb span[itemprop='name']"))
-      .map(x => (x.textContent || "").trim())
-      .filter(Boolean);
-    if (crumbs.length >= 3) return crumbs[1];
-
-    // Fallback: JS data
-    const m = raw.match(/"item_category"\s*:\s*"([^"]+)"/);
-    if (m) {
-      let s = m[1];
-      s = s.replace(/\\\//g, "/");
-      s = s.replace(/\\u([0-9a-fA-F]{4})/g, (_,hex)=>String.fromCharCode(parseInt(hex,16)));
-      return s.trim();
-    }
-    return "";
-  };
-
-  const extractProductName = (raw, doc) => {
-    return (
-      getMeta(doc, 'meta[property="og:title"]') ||
-      (doc.title || "").trim() ||
-      (doc.querySelector("h1") ? doc.querySelector("h1").textContent.trim() : "") ||
-      ""
-    ).trim();
-  };
-
-  const extractDescription = (raw, doc) => {
-    let d =
-      getMeta(doc, 'meta[name="description"]') ||
-      getMeta(doc, 'meta[property="og:description"]') ||
-      "";
-    if (!d) {
-      const short = doc.querySelector(".product-description-short");
-      if (short) d = (short.textContent || "").trim();
-    }
-    if (!d) {
-      const p = doc.querySelector("p");
-      if (p) d = (p.textContent || "").trim();
-    }
-    return decodeEntities(d).replace(/\s+/g, " ").trim();
-  };
-
-  const buildKeywords = ({ rawText, brand, productName, model, mainName, category }) => {
-    const out = [];
-    const text = (rawText || "").toLowerCase();
-
-    const pn = (productName || "").trim();
-    const br = (brand || "").trim();
-    const cat = (category || "").trim();
-    const main = (mainName || "").trim();
-    const mdl = (model || "").trim();
-    const mdlCompact = mdl.replace(/[^a-z0-9]/gi, "");
-
-    // Temel kombinasyonlar
-    uniqPush(out, (br && main) ? `${br} ${main}` : "");
-    uniqPush(out, (br && pn && !pn.toLowerCase().includes(br.toLowerCase())) ? `${br} ${pn}` : pn);
-    uniqPush(out, mdl);
-    uniqPush(out, mdlCompact && mdlCompact !== mdl ? mdlCompact : "");
-    uniqPush(out, main);
-    uniqPush(out, main ? `${main} gitar pedalı` : "");
-    uniqPush(out, br ? `${br} gitar pedalı` : "");
-    uniqPush(out, cat);
-    uniqPush(out, cat && br ? `${cat} ${br}` : "");
-    uniqPush(out, pn ? `${pn} fiyat` : "");
-    uniqPush(out, pn ? `${pn} inceleme` : "");
-
-    // Metinden yakalanabilen özellikler (varsa)
-    const feats = [
-      [/fuzz/g, "fuzz pedalı"],
-      [/octave|oktav/g, "octave fuzz pedalı"],
-      [/overdrive/g, "overdrive pedalı"],
-      [/distortion|distorsiyon/g, "distortion pedalı"],
-      [/chorus/g, "chorus pedalı"],
-      [/vibrato/g, "vibrato pedalı"],
-      [/delay/g, "delay pedalı"],
-      [/reverb/g, "reverb pedalı"],
-      [/tremolo/g, "tremolo pedalı"],
-      [/compressor|kompres(ö|o)r/g, "kompresör pedalı"],
-      [/preamp|preampl(ı|i)/g, "preamp pedalı"],
-      [/true\s*bypass/g, "true bypass pedalı"],
-      [/germanium|germanyum/g, "germanium diyot"],
-      [/transist(ö|o)r|transistor/g, "transistör devre"],
-      [/nos\b/g, "NOS komponent"],
-      [/vintage|70|yetmi(ş|s)/g, "vintage pedal"],
-      [/\b9v\b|9\s*volt/g, "9V pedal adaptörü"],
-      [/pil/g, "9V pil ile çalışma"],
-      [/pcb/g, "PCB devre"]
-    ];
-    feats.forEach(([rx, phrase]) => { if (rx.test(text)) uniqPush(out, phrase); });
-
-    // Otomatik bigram (kısa/işlevsel)
-    const stop = new Set([
-      "ve","veya","ile","icin","için","bir","bu","su","şu","da","de","mi","mı","mu","mü","the","and","of","to",
-      "ana","sayfa","giris","giriş","uye","üye","ol","yap","sepet","sepete","ekle","karsilastir","karşılaştır",
-      "kampanya","firsatlar","iletişim","iletisim","hakkımızda","hakkimizda","urun","ürün","diger","diğer"
-    ]);
-
-    const tokens = trMap(decodeEntities(rawText))
-      .toLowerCase()
-      .replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ\s]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(" ")
-      .filter(w => w.length >= 3 && !stop.has(w));
-
-    const bigramCount = new Map();
-    for (let i = 0; i < tokens.length - 1; i++) {
-      const a = tokens[i], b = tokens[i+1];
-      if (stop.has(a) || stop.has(b)) continue;
-      const bg = `${a} ${b}`;
-      bigramCount.set(bg, (bigramCount.get(bg) || 0) + 1);
-    }
-
-    const topBigrams = Array.from(bigramCount.entries())
-      .sort((x,y) => y[1]-x[1])
-      .map(x => x[0])
-      .filter(bg => bg.length <= 40)
-      .slice(0, 40);
-
-    for (const bg of topBigrams) {
-      if (out.length >= 20) break;
-      uniqPush(out, bg);
-    }
-
-    // Yetersiz kalırsa doldur
-    const fillers = [
-      "gitar efekt pedalı", "gitar prosesörü", "stüdyo ekipmanı", "sahne ekipmanı", "orijinal ürün", "garanti"
-    ];
-    for (const f of fillers) {
-      if (out.length >= 20) break;
-      uniqPush(out, f);
-    }
-
-    // Tam 20'ye sabitle
-    return out.slice(0, 20).map(x => x.toLowerCase()).join(", ");
-  };
-
-  const makeSeoTitle = (brand, productName) => {
-    const br = (brand || "").trim();
-    const pn = (productName || "").trim();
-    if (!br) return `${pn} | ${STORE_NAME}`.trim();
-    if (pn.toLowerCase().includes(br.toLowerCase())) return `${pn} | ${STORE_NAME}`.trim();
-    return `${br} ${pn} | ${STORE_NAME}`.trim();
-  };
-
-  const makeSeoLine2 = (productName, category) => {
-    const pn = (productName || "").trim();
-    const cat = (category || "Ürünler").trim();
-    return `${pn} ve Diğer ${cat} ${STORE_NAME}'da`.replace(/\s+/g, " ").trim();
-  };
-
-  const run = () => {
-    const raw = cleanPasted(src.value);
-    if (!raw) { out.textContent = ""; return; }
-
-    let doc;
-    try {
-      doc = new DOMParser().parseFromString(raw, "text/html");
-    } catch (e) {
-      out.textContent = "HTML okunamadı.";
-      return;
-    }
-
-    const productName = extractProductName(raw, doc);
-    const description = extractDescription(raw, doc);
-    const brand = extractBrand(raw, doc);
-    const category = extractCategory(raw, doc);
-
-    // model / mainName ayır
-    let model = "";
-    let mainName = productName;
-    if (productName.includes(" - ")) {
-      const parts = productName.split(" - ");
-      model = (parts[0] || "").trim();
-      mainName = (parts.slice(1).join(" - ") || "").trim();
-    }
-
-    const slug = slugify([brand, productName].filter(Boolean).join(" "));
-    const seoTitle = makeSeoTitle(brand, productName);
-    const seoLine2 = makeSeoLine2(productName, category);
-
-    const textForKeywords = [
-      productName, description, brand, category,
-      (doc.querySelector("#description") ? doc.querySelector("#description").textContent : ""),
-      (doc.querySelector(".product-description") ? doc.querySelector(".product-description").textContent : "")
-    ].join(" ").slice(0, 200000);
-
-    const keywords = buildKeywords({
-      rawText: textForKeywords,
-      brand, productName, model, mainName, category
-    });
-
-    out.textContent = [
-      productName || "",
-      description || "",
-      slug || "",
-      seoTitle || "",
-      seoLine2 || "",
-      keywords || ""
-    ].join("\n");
-  };
-
-  const src = document.getElementById("src");
-  const out = document.getElementById("out");
-
-  let t;
-  src.addEventListener("input", () => {
-    clearTimeout(t);
-    t = setTimeout(run, 150);
-  });
-
-})();
-</script>
+    document.getElementById("copy").onclick = async () => {
+      await navigator.clipboard.writeText(out.textContent);
+    };
+  </script>
+</body>
 </html>
