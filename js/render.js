@@ -49,8 +49,6 @@ th.hdrTight .hTxt{letter-spacing:-.02em;font-size:12px}
 th.tightCol,td.tightCol{padding-left:4px!important;padding-right:4px!important}
 td.eanCell{white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important}
 td.eanCell .cellTxt{white-space:nowrap!important}
-
-/* ✅ SAYFAYA SIĞDIRMA */
 .tableWrap{overflow-x:hidden!important}
 #t1,#t2,#t2L,#t2R{
   width:100%!important;
@@ -59,28 +57,18 @@ td.eanCell .cellTxt{white-space:nowrap!important}
 }
 #t1 th,#t1 td,#t2 th,#t2 td,#t2L th,#t2L td,#t2R th,#t2R td{white-space:nowrap}
 #t1 td.nameCell,#t2 td.nameCell,#t2L td.nameCell,#t2R td.nameCell{min-width:0}
-
-/* ✅ Tüm Markalar: pasif T-Soft adı */
 .tsoftPassive{
   text-decoration-line:line-through;
   text-decoration-thickness:1px;
   text-decoration-color:rgba(160,160,160,.85);
 }
-
-/* ✅ Tüm Markalar: stok tutarsız satır soft pulse */
 @keyframes softStockPulse{
   0%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}
   55%{box-shadow:0 0 14px rgba(232,60,97,.26); background:rgba(232,60,97,.06)}
   100%{box-shadow:0 0 0 rgba(232,60,97,0); background:transparent}
 }
 tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
-
-/* ✅ Split unmatched başlıkları ortalı */
 .unmHead{font-weight:1300; text-align:center!important; letter-spacing:.01em;}
-
-/* =========================================================
-   ✅ ALL modunda:
-   ========================================================= */
 #t1.allAuto, #t2L.allAuto, #t2R.allAuto{
   table-layout:auto!important;
   width:100%!important;
@@ -101,16 +89,26 @@ tr.stockPulse{animation:softStockPulse 1000ms ease-in-out infinite}
   overflow:visible!important;
   text-overflow:clip!important;
 }
+.variantSub{
+  display:block;
+  margin-top:2px;
+  font-size:12px;
+  font-weight:900;
+  opacity:.82;
+  color:var(--text-2);
+}
 `;
   document.head.appendChild(st);
 }
 css();
 
-const cellName = (txt, href, pulse = false, extraCls = '') => {
+const cellName = (txt, href, pulse = false, extraCls = '', sub = '') => {
   const v = (txt ?? '').toString(), u = href || '', cls = `nm${pulse ? ' namePulse' : ''}${extraCls ? ` ${extraCls}` : ''}`;
-  return u
+  const body = u
     ? `<a class="${cls}" href="${esc(u)}" target="_blank" rel="noopener" title="${esc(v)}">${esc(v)}</a>`
     : `<span class="${cls}" title="${esc(v)}">${esc(v)}</span>`;
+  const subHtml = sub ? `<span class="variantSub" title="${esc(sub)}">${esc(sub)}</span>` : '';
+  return `${body}${subHtml}`;
 };
 
 let _raf = 0, _bound = false;
@@ -198,7 +196,6 @@ const fmtStockLabel = n => {
   return (v > 0) ? `Stok Var (${fmtNum(v)})` : `Stok Yok (${fmtNum(v)})`;
 };
 
-// ✅ Compel "Stok Yok" (ana listede "Stokta Yok" da dahil)
 const isCompelOut = (row) => /YOK/i.test(String(row?.["Stok (Compel)"] ?? ''));
 
 export function createRenderer({ ui } = {}) {
@@ -236,8 +233,6 @@ export function createRenderer({ ui } = {}) {
         .map((row, idx) => ({ row, idx }))
         .sort((A, B) => {
           const a = A.row, b = B.row;
-
-          // ✅ Compel Stok Yok olanlar en alta
           const ao = isCompelOut(a) ? 1 : 0;
           const bo = isCompelOut(b) ? 1 : 0;
           if (ao !== bo) return ao - bo;
@@ -254,7 +249,7 @@ export function createRenderer({ ui } = {}) {
         let v = r[c] ?? '';
         if (c === "Sıra No") v = String(rowIdx + 1);
 
-        if (c === "Ürün Adı (Compel)") return `<td class="left nameCell">${cellName(v, r._clink || '')}</td>`;
+        if (c === "Ürün Adı (Compel)") return `<td class="left nameCell">${cellName(v, r._clink || '', false, '', r._variant || '')}</td>`;
         if (c === "Ürün Adı (T-Soft)") {
           const txt = (v ?? '').toString().trim();
           return `<td class="left nameCell">${cellName(txt, r._seo || '')}</td>`;
@@ -331,7 +326,9 @@ export function createRenderer({ ui } = {}) {
           const tsoftCode = tCode ? `<span class="cellTxt" title="${esc(tCode)}">${esc(tCode)}</span>` : `<span class="cellTxt">—</span>`;
           const aideCode = aCode ? `<span class="cellTxt" title="${esc(aCode)}">${esc(aCode)}</span>` : `<span class="cellTxt">—</span>`;
 
-          const compel = cNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(cNm, cLn, cPulse)}</span><span class="tagRight">${esc(cTag)}</span></div>` : `<span class="cellTxt">—</span>`;
+          const compel = cNm
+            ? `<div class="tagFlex"><span class="tagLeft">${cellName(cNm, cLn, cPulse, '', r._variant || '')}</span><span class="tagRight">${esc(cTag)}</span></div>`
+            : `<span class="cellTxt">—</span>`;
           const tsoft = tNm ? `<div class="tagFlex"><span class="tagLeft">${cellName(tNm, tLn, false)}</span><span class="tagRight">${esc(tTag)}</span></div>` : `<span class="cellTxt">—</span>`;
           const aide = aNm ? `<div class="tagFlex" title="${esc(aNm)}"><span class="cellTxt tagLeft${aPulse ? ' namePulse' : ''}">${esc(aNm)}</span><span class="tagRight">${esc(aTag)}</span></div>` : `<span class="cellTxt">—</span>`;
 
