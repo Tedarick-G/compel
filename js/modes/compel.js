@@ -120,6 +120,7 @@ export function createCompelMode({
       return byBrand.get(key);
     };
 
+    // 1) Compel-only
     for (const r of U || []) {
       const marka = r["Marka"] || "";
       const g = ensure(marka);
@@ -138,6 +139,7 @@ export function createCompelMode({
       });
     }
 
+    // 2) T-Soft-only
     for (const r of UT || []) {
       const marka = r["Marka"] || "";
       const g = ensure(marka);
@@ -164,6 +166,7 @@ export function createCompelMode({
       else g.T2.push(item);
     }
 
+    // 3) Aide-only
     try {
       if (depot?.isReady?.()) {
         const brandsNormSet = buildSelectedBrandsNormSet();
@@ -192,6 +195,7 @@ export function createCompelMode({
       console.warn("depot unmatched build fail", e);
     }
 
+    // ✅ Aide sıralaması: stok çok -> az; en sonda Stok Yok (0 ve altı)
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
       if (!g?.A?.length) continue;
@@ -204,11 +208,7 @@ export function createCompelMode({
       }
 
       const cmpName = (x, y) =>
-        String(x?.["Aide Ürün Adı"] || "").localeCompare(
-          String(y?.["Aide Ürün Adı"] || ""),
-          "tr",
-          { sensitivity: "base" }
-        );
+        String(x?.["Aide Ürün Adı"] || "").localeCompare(String(y?.["Aide Ürün Adı"] || ""), "tr", { sensitivity: "base" });
 
       pos.sort((a, b) => (Number(b?._dstok ?? 0) - Number(a?._dstok ?? 0)) || cmpName(a, b));
       zero.sort(cmpName);
@@ -216,12 +216,13 @@ export function createCompelMode({
       g.A = [...pos, ...zero];
     }
 
+    // ✅ Compel stok sırası: Stok Var önce, Stok Yok en sona
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
       if (!g?.C?.length) continue;
       const cin = [], cout = [];
       for (const it of g.C) {
-        const n = stockToNumber(it?._cstokraw ?? "", { source: "compel" });
+        const n = stockToNumber(it?._cstokraw ?? '', { source: 'compel' });
         (n > 0 ? cin : cout).push(it);
       }
       g.C = [...cin, ...cout];
@@ -255,16 +256,18 @@ export function createCompelMode({
         while (bucket.length) {
           const t = bucket.shift();
           const c = g.C.length ? g.C.shift() : null;
-          const a = g.A.length ? g.A.shift() : null;
+          const a = g.A.length ? g.A.shift() : null; // ✅ Aide yüksek stoklar yukarı taşınır
           out.push(mkRow(brandDisp, c, t, a));
         }
       }
     };
 
+    // T-Soft durum fazları
     emitTBucket("T0");
     emitTBucket("T1");
     emitTBucket("T2");
 
+    // C/A-only fazı (pasif için az da olsa ayır)
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
       if (!g) continue;
@@ -276,11 +279,12 @@ export function createCompelMode({
 
       while (g.C.length > reserveC || g.A.length > reserveA) {
         const c = (g.C.length > reserveC) ? g.C.shift() : null;
-        const a = (g.A.length > reserveA) ? g.A.shift() : null;
+        const a = (g.A.length > reserveA) ? g.A.shift() : null; // ✅ Aide-only satırlarda da yüksek stoklar önce gelir
         out.push(mkRow(brandDisp, c, null, a));
       }
     }
 
+    // Pasif en alt
     emitTBucket("T3");
 
     out.forEach((r, i) => (r["Sıra"] = String(i + 1)));
@@ -301,82 +305,6 @@ export function createCompelMode({
     ui?.setChip?.("l1Chip", "Compel:-");
     ui?.setChip?.("l2Chip", "T-Soft:-");
     ui?.setChip?.("sum", "✓0 • ✕0", "muted");
-  }
-
-  function makeCompelRowFromScanProduct(p, seqNo) {
-    return {
-      "Sıra No": String(seqNo),
-      Marka: String(p.brand || ""),
-      "Ürün Adı": String(p.title || "Ürün"),
-      "Ürün Kodu": String(p.productCode || ""),
-      Stok: String(p.stock || ""),
-      EAN: String(p.ean || ""),
-      Link: String(p.url || ""),
-    };
-  }
-
-  async function expandVariantRowsAfterScan(rows) {
-    const allRows = Array.isArray(rows) ? rows : [];
-    const candidates = [];
-    const candidateBaseSet = new Set();
-
-    for (const r of allRows) {
-      const raw = String(r?.Link || "");
-      if (!/#\//.test(raw)) continue;
-      const base = raw.split("#")[0];
-      if (!base || candidateBaseSet.has(base)) continue;
-      candidateBaseSet.add(base);
-      candidates.push({ base, row: r });
-    }
-
-    if (!candidates.length) return allRows;
-
-    ui?.setStatus?.(`Varyant ürünler açılıyor… (0/${candidates.length})`, "unk");
-
-    const expandedMap = new Map();
-
-    for (let i = 0; i < candidates.length; i++) {
-      const c = candidates[i];
-      ui?.setStatus?.(`Varyant ürünler açılıyor… (${i + 1}/${candidates.length})`, "unk");
-
-      try {
-        const dbg = await api.debugCompelProduct(apiBase, { url: c.base, signal: abortCtrl?.signal });
-        const list = Array.isArray(dbg?.results) ? dbg.results : [];
-
-        if (list.length > 1) {
-          expandedMap.set(c.base, list.map((p) => ({
-            Marka: String(p.brand || c.row?.Marka || ""),
-            "Ürün Adı": String(p.title || ""),
-            "Ürün Kodu": String(p.productCode || ""),
-            Stok: String(p.stock || ""),
-            EAN: String(p.ean || ""),
-            Link: String(p.url || c.base || ""),
-          })));
-        }
-      } catch (e) {
-        console.warn("variant expand fail", c.base, e);
-      }
-    }
-
-    if (!expandedMap.size) return allRows;
-
-    const out = [];
-    const consumed = new Set();
-
-    for (const r of allRows) {
-      const raw = String(r?.Link || "");
-      const base = raw.split("#")[0];
-
-      if (base && expandedMap.has(base)) {
-        if (consumed.has(base)) continue;
-        consumed.add(base);
-        out.push(...expandedMap.get(base));
-      } else {
-        out.push(r);
-      }
-    }
-
-    return out.map((r, i) => ({ ...r, "Sıra No": String(i + 1) }));
   }
 
   async function generate() {
@@ -434,14 +362,13 @@ export function createCompelMode({
         }
       }
 
+      let seq = 0;
       const chosen = selectedBrands.map((b) => ({ id: b.id, slug: b.slug, name: b.name, count: b.count }));
 
       const scanPromise = (async () => {
-        let seq = 0;
         const rows = [];
         await api.scanCompel(apiBase, chosen, {
           signal: abortCtrl.signal,
-          includeVariants: false,
           onMessage: (m) => {
             if (!m) return;
             if (m.type === "brandStart" || m.type === "page") {
@@ -452,7 +379,15 @@ export function createCompelMode({
               if (HASARLI_RE.test(title)) return;
 
               seq++;
-              rows.push(makeCompelRowFromScanProduct(p, seq));
+              rows.push({
+                "Sıra No": String(seq),
+                Marka: String(p.brand || ""),
+                "Ürün Adı": title,
+                "Ürün Kodu": String(p.productCode || ""),
+                Stok: String(p.stock || ""),
+                EAN: String(p.ean || ""),
+                Link: String(p.url || ""),
+              });
               if (seq % 250 === 0) ui?.setChip?.("l1Chip", `Compel:${rows.length}`);
             }
           },
@@ -461,9 +396,7 @@ export function createCompelMode({
       })();
 
       const t2Promise = t2txt ? Promise.resolve(t2txt) : readFileText(file);
-      const [t2txtFinal, L1raw] = await Promise.all([t2Promise, scanPromise]);
-
-      let L1 = await expandVariantRowsAfterScan(L1raw);
+      const [t2txtFinal, L1] = await Promise.all([t2Promise, scanPromise]);
       ui?.setChip?.("l1Chip", `Compel:${L1.length}`);
 
       const p2 = parseDelimited(t2txtFinal);
@@ -473,15 +406,7 @@ export function createCompelMode({
       }
 
       const s2 = p2.rows[0];
-      const C1 = {
-        siraNo: "Sıra No",
-        marka: "Marka",
-        urunAdi: "Ürün Adı",
-        urunKodu: "Ürün Kodu",
-        stok: "Stok",
-        ean: "EAN",
-        link: "Link",
-      };
+      const C1 = { siraNo: "Sıra No", marka: "Marka", urunAdi: "Ürün Adı", urunKodu: "Ürün Kodu", stok: "Stok", ean: "EAN", link: "Link" };
 
       const C2 = {
         ws: pickColumn(s2, ["Web Servis Kodu", "WebServis Kodu", "WebServisKodu"]),
