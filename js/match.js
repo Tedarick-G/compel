@@ -1,5 +1,3 @@
-
-
 import { TR,T,D,nowISO,inStock } from './utils.js';
 const $=id=>document.getElementById(id);
 
@@ -127,13 +125,11 @@ export function createMatcher({getDepotAgg,isDepotReady}={}){
     return b===exp?false:true
   };
 
-  // ✅ kural: Compel EAN yoksa T-Soft EAN kırmızı olmasın
-  // return: true(=eşleşti) / false(=eşleşmedi) / null(=compel ean yok -> işaretleme yok)
   const eanMatch=(aRaw,bRaw2,ok)=>{
     if(!ok)return null;
 
     const aList=eans(aRaw||'');
-    if(!aList.length) return null; // Compel EAN yok -> uyarı yok
+    if(!aList.length) return null;
 
     const a=new Set();
     for(const x of aList){a.add(x);const alt=eanAlt1(x);alt&&a.add(alt)}
@@ -169,8 +165,11 @@ export function createMatcher({getDepotAgg,isDepotReady}={}){
       _s1raw:s1raw,_s2raw:s2raw,_dnum:d.num,_draw:d.raw,
       _m:!!r2,_how:r2?how:'',_k:kNew(r1),_bn:B(r1[C1.marka]||''),_seo:seoAbs,_clink:clink,
 
+      _variant:T(r1[C1.varyasyon]||''),
+      _variantAttributeId:T(r1[C1.variantAttributeId]||''),
+
       _eanMatch:em,
-      _eanBad:(em===false),     // ✅ sadece em===false iken (compel ean varsa)
+      _eanBad:(em===false),
       _stokBad:(stokBad===true)
     }
   };
@@ -233,7 +232,17 @@ export function createMatcher({getDepotAgg,isDepotReady}={}){
 
     const idx=R.findIndex(x=>x._k===r._k);
     if(idx>=0){
-      const stub={[C1.siraNo]:r["Sıra No"],[C1.marka]:r["Marka"],[C1.urunAdi]:r["Ürün Adı (Compel)"],[C1.urunKodu]:r["Ürün Kodu (Compel)"],[C1.stok]:r._s1raw||'',[C1.ean]:r["EAN (Compel)"],[C1.link]:r._clink||''};
+      const stub={
+        [C1.siraNo]:r["Sıra No"],
+        [C1.marka]:r["Marka"],
+        [C1.urunAdi]:r["Ürün Adı (Compel)"],
+        [C1.urunKodu]:r["Ürün Kodu (Compel)"],
+        [C1.stok]:r._s1raw||'',
+        [C1.ean]:r["EAN (Compel)"],
+        [C1.link]:r._clink||'',
+        [C1.varyasyon]:r._variant||'',
+        [C1.variantAttributeId]:r._variantAttributeId||'',
+      };
       R[idx]=outRow(stub,r2,'MANUAL');R[idx]._k=r._k;R[idx]._bn=b1
     }
     U.splice(i,1);return true
