@@ -303,6 +303,82 @@ export function createCompelMode({
     ui?.setChip?.("sum", "✓0 • ✕0", "muted");
   }
 
+  function makeCompelRowFromScanProduct(p, seqNo) {
+    return {
+      "Sıra No": String(seqNo),
+      Marka: String(p.brand || ""),
+      "Ürün Adı": String(p.title || "Ürün"),
+      "Ürün Kodu": String(p.productCode || ""),
+      Stok: String(p.stock || ""),
+      EAN: String(p.ean || ""),
+      Link: String(p.url || ""),
+    };
+  }
+
+  async function expandVariantRowsAfterScan(rows) {
+    const allRows = Array.isArray(rows) ? rows : [];
+    const candidates = [];
+    const candidateBaseSet = new Set();
+
+    for (const r of allRows) {
+      const raw = String(r?.Link || "");
+      if (!/#\//.test(raw)) continue;
+      const base = raw.split("#")[0];
+      if (!base || candidateBaseSet.has(base)) continue;
+      candidateBaseSet.add(base);
+      candidates.push({ base, row: r });
+    }
+
+    if (!candidates.length) return allRows;
+
+    ui?.setStatus?.(`Varyant ürünler açılıyor… (0/${candidates.length})`, "unk");
+
+    const expandedMap = new Map();
+
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      ui?.setStatus?.(`Varyant ürünler açılıyor… (${i + 1}/${candidates.length})`, "unk");
+
+      try {
+        const dbg = await api.debugCompelProduct(apiBase, { url: c.base, signal: abortCtrl?.signal });
+        const list = Array.isArray(dbg?.results) ? dbg.results : [];
+
+        if (list.length > 1) {
+          expandedMap.set(c.base, list.map((p) => ({
+            Marka: String(p.brand || c.row?.Marka || ""),
+            "Ürün Adı": String(p.title || ""),
+            "Ürün Kodu": String(p.productCode || ""),
+            Stok: String(p.stock || ""),
+            EAN: String(p.ean || ""),
+            Link: String(p.url || c.base || ""),
+          })));
+        }
+      } catch (e) {
+        console.warn("variant expand fail", c.base, e);
+      }
+    }
+
+    if (!expandedMap.size) return allRows;
+
+    const out = [];
+    const consumed = new Set();
+
+    for (const r of allRows) {
+      const raw = String(r?.Link || "");
+      const base = raw.split("#")[0];
+
+      if (base && expandedMap.has(base)) {
+        if (consumed.has(base)) continue;
+        consumed.add(base);
+        out.push(...expandedMap.get(base));
+      } else {
+        out.push(r);
+      }
+    }
+
+    return out.map((r, i) => ({ ...r, "Sıra No": String(i + 1) }));
+  }
+
   async function generate() {
     const sel = daily?.getSelected?.() || { tsoft: "", aide: "" };
     const needDaily = !!(sel.tsoft || sel.aide);
@@ -358,14 +434,14 @@ export function createCompelMode({
         }
       }
 
-      let seq = 0;
       const chosen = selectedBrands.map((b) => ({ id: b.id, slug: b.slug, name: b.name, count: b.count }));
 
       const scanPromise = (async () => {
+        let seq = 0;
         const rows = [];
         await api.scanCompel(apiBase, chosen, {
           signal: abortCtrl.signal,
-          includeVariants: true,
+          includeVariants: false,
           onMessage: (m) => {
             if (!m) return;
             if (m.type === "brandStart" || m.type === "page") {
@@ -376,15 +452,7 @@ export function createCompelMode({
               if (HASARLI_RE.test(title)) return;
 
               seq++;
-              rows.push({
-                "Sıra No": String(seq),
-                Marka: String(p.brand || ""),
-                "Ürün Adı": title,
-                "Ürün Kodu": String(p.productCode || ""),
-                Stok: String(p.stock || ""),
-                EAN: String(p.ean || ""),
-                Link: String(p.url || ""),
-              });
+              rows.push(makeCompelRowFromScanProduct(p, seq));
               if (seq % 250 === 0) ui?.setChip?.("l1Chip", `Compel:${rows.length}`);
             }
           },
@@ -393,7 +461,9 @@ export function createCompelMode({
       })();
 
       const t2Promise = t2txt ? Promise.resolve(t2txt) : readFileText(file);
-      const [t2txtFinal, L1] = await Promise.all([t2Promise, scanPromise]);
+      const [t2txtFinal, L1raw] = await Promise.all([t2Promise, scanPromise]);
+
+      let L1 = await expandVariantRowsAfterScan(L1raw);
       ui?.setChip?.("l1Chip", `Compel:${L1.length}`);
 
       const p2 = parseDelimited(t2txtFinal);
