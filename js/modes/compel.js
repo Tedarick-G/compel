@@ -1,4 +1,3 @@
-// ./js/modes/compel.js
 import { TR, T, parseDelimited, pickColumn, readFileText, stockToNumber } from "../utils.js";
 
 export function createCompelMode({
@@ -54,7 +53,6 @@ export function createCompelMode({
       .trim()
       .replace(/\s+/g, " ")
       .toLocaleUpperCase(TR);
-
   const codeAlt = (n) => {
     const k = codeNorm(n);
     if (!k || !/^[0-9]+$/.test(k)) return "";
@@ -305,58 +303,6 @@ export function createCompelMode({
     ui?.setChip?.("sum", "✓0 • ✕0", "muted");
   }
 
-  function buildCompelDebug(rows = []) {
-    const total = rows.length;
-    const withQueryGroup = rows.filter((r) => /\bgroup%5B|\bgroup\[/.test(String(r.Link || ""))).length;
-    const withQuestionMark = rows.filter((r) => /\?/.test(String(r.Link || ""))).length;
-    const withEan = rows.filter((r) => T(r.EAN || "")).length;
-    const noEan = total - withEan;
-
-    const byBaseUrl = new Map();
-    for (const r of rows) {
-      const raw = String(r.Link || "");
-      const base = raw.split("?")[0].split("#")[0];
-      if (!base) continue;
-      byBaseUrl.has(base) || byBaseUrl.set(base, []);
-      byBaseUrl.get(base).push(r);
-    }
-
-    const multiBase = [...byBaseUrl.entries()]
-      .filter(([, arr]) => arr.length > 1)
-      .sort((a, b) => b[1].length - a[1].length)
-      .slice(0, 10)
-      .map(([base, arr]) => ({
-        base,
-        count: arr.length,
-        sampleTitles: arr.slice(0, 5).map((x) => T(x["Ürün Adı"] || "")),
-        sampleCodes: arr.slice(0, 5).map((x) => T(x["Ürün Kodu"] || "")),
-        sampleEans: arr.slice(0, 5).map((x) => T(x.EAN || "")),
-      }));
-
-    const duplicateKeyMap = new Map();
-    for (const r of rows) {
-      const k = [
-        T(r.Marka || ""),
-        T(r["Ürün Adı"] || ""),
-        T(r["Ürün Kodu"] || ""),
-        T(r.EAN || "")
-      ].join("||");
-      duplicateKeyMap.set(k, (duplicateKeyMap.get(k) || 0) + 1);
-    }
-    const duplicateExactCount = [...duplicateKeyMap.values()].filter((n) => n > 1).length;
-
-    return {
-      total,
-      withQueryGroup,
-      withQuestionMark,
-      withEan,
-      noEan,
-      multiBaseCount: multiBase.length,
-      duplicateExactCount,
-      topVariantBases: multiBase,
-    };
-  }
-
   async function generate() {
     const sel = daily?.getSelected?.() || { tsoft: "", aide: "" };
     const needDaily = !!(sel.tsoft || sel.aide);
@@ -450,9 +396,6 @@ export function createCompelMode({
       const [t2txtFinal, L1] = await Promise.all([t2Promise, scanPromise]);
       ui?.setChip?.("l1Chip", `Compel:${L1.length}`);
 
-      const compelDebug = buildCompelDebug(L1);
-      console.log("COMPEL DEBUG", compelDebug);
-
       const p2 = parseDelimited(t2txtFinal);
       if (!p2.rows.length) {
         alert("T-Soft CSV boş görünüyor.");
@@ -467,7 +410,7 @@ export function createCompelMode({
         urunKodu: "Ürün Kodu",
         stok: "Stok",
         ean: "EAN",
-        link: "Link"
+        link: "Link",
       };
 
       const C2 = {
@@ -502,9 +445,6 @@ export function createCompelMode({
 
       ui?.setStatus?.("Hazır", "ok");
       ui?.setChip?.("l2Chip", `T-Soft:${L2.length}/${L2all.length}`);
-
-      const statusMsg = `Hazır • VaryantURL:${compelDebug.withQueryGroup} • ÇokluBase:${compelDebug.multiBaseCount}`;
-      ui?.setStatus?.(statusMsg, "ok");
 
       brandUI?.lockListTitleFromCurrentSelection?.();
       brandUI?.setListTitleVisible?.(true);
