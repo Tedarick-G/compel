@@ -8,7 +8,7 @@ export async function scanCompel(API_BASE,brands,{signal,onMessage,includeVarian
   const r=await fetch(`${API_BASE}/api/scan`,{
     method:"POST",
     headers:{"content-type":"application/json"},
-    body:JSON.stringify({brands,includeVariants:!!includeVariants}),
+    body:JSON.stringify({brands,includeVariants}),
     signal
   });
   if(!r.ok){
