@@ -121,6 +121,7 @@ export function createCompelMode({
       return byBrand.get(key);
     };
 
+    // 1) Compel-only
     for (const r of U || []) {
       const marka = r["Marka"] || "";
       const g = ensure(marka);
@@ -139,6 +140,7 @@ export function createCompelMode({
       });
     }
 
+    // 2) T-Soft-only
     for (const r of UT || []) {
       const marka = r["Marka"] || "";
       const g = ensure(marka);
@@ -165,6 +167,7 @@ export function createCompelMode({
       else g.T2.push(item);
     }
 
+    // 3) Aide-only
     try {
       if (depot?.isReady?.()) {
         const brandsNormSet = buildSelectedBrandsNormSet();
@@ -193,6 +196,7 @@ export function createCompelMode({
       console.warn("depot unmatched build fail", e);
     }
 
+    // Aide sıralaması
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
       if (!g?.A?.length) continue;
@@ -213,6 +217,7 @@ export function createCompelMode({
       g.A = [...pos, ...zero];
     }
 
+    // Compel stok sırası
     for (const brKey of brandOrder) {
       const g = byBrand.get(brKey);
       if (!g?.C?.length) continue;
@@ -362,6 +367,7 @@ export function createCompelMode({
         const rows = [];
         await api.scanCompel(apiBase, chosen, {
           signal: abortCtrl.signal,
+          includeVariants: true,
           onMessage: (m) => {
             if (!m) return;
             if (m.type === "brandStart" || m.type === "page") {
@@ -380,8 +386,6 @@ export function createCompelMode({
                 Stok: String(p.stock || ""),
                 EAN: String(p.ean || ""),
                 Link: String(p.url || ""),
-                "Varyasyon": String(p.variantLabel || ""),
-                "_variantAttributeId": String(p.variantAttributeId || ""),
               });
               if (seq % 250 === 0) ui?.setChip?.("l1Chip", `Compel:${rows.length}`);
             }
@@ -401,17 +405,7 @@ export function createCompelMode({
       }
 
       const s2 = p2.rows[0];
-      const C1 = {
-        siraNo: "Sıra No",
-        marka: "Marka",
-        urunAdi: "Ürün Adı",
-        urunKodu: "Ürün Kodu",
-        stok: "Stok",
-        ean: "EAN",
-        link: "Link",
-        varyasyon: "Varyasyon",
-        variantAttributeId: "_variantAttributeId",
-      };
+      const C1 = { siraNo: "Sıra No", marka: "Marka", urunAdi: "Ürün Adı", urunKodu: "Ürün Kodu", stok: "Stok", ean: "EAN", link: "Link" };
 
       const C2 = {
         ws: pickColumn(s2, ["Web Servis Kodu", "WebServis Kodu", "WebServisKodu"]),
