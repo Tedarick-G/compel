@@ -35,6 +35,17 @@ export async function scanCompel(API_BASE,brands,{signal,onMessage,includeVarian
   }
 }
 
+export async function debugCompelProduct(API_BASE,{url,signal}={}){
+  const u=new URL(`${API_BASE}/api/debug-product`);
+  u.searchParams.set("url",String(url||""));
+  const r=await fetch(u.toString(),{cache:"no-store",signal});
+  const t=await r.text().catch(()=>"");
+  let j=null;
+  try{j=JSON.parse(t)}catch{j=null}
+  if(!r.ok)throw new Error(j?.error?String(j.error):`API /api/debug-product hata: ${r.status}`);
+  return j
+}
+
 export async function dailyMeta(API_BASE){
   const r=await fetch(`${API_BASE}/api/daily/meta`,{cache:"no-store"});
   if(!r.ok)throw new Error(`API /api/daily/meta hata: ${r.status}`);
